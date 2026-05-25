@@ -28,32 +28,18 @@ export default function MessageInput({ onAnalyze, loading }) {
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 30 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.2 }}
-      whileHover={{ y: -5 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
       className="bg-white rounded-2xl p-6 shadow-xl border border-gray-100"
     >
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="font-semibold text-gray-700">Analyze Message</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Paste SMS, WhatsApp, or social media message</p>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-2 rounded-xl">
+          <FileText className="w-5 h-5 text-white" />
         </div>
-        <div className="flex gap-2">
-          <motion.button 
-            whileHover={{ scale: 1.1, backgroundColor: "#f3f4f6" }}
-            whileTap={{ scale: 0.95 }}
-            className="p-2 rounded-xl transition-colors"
-          >
-            <Mic className="w-4 h-4 text-gray-400" />
-          </motion.button>
-          <motion.button 
-            whileHover={{ scale: 1.1, backgroundColor: "#f3f4f6" }}
-            whileTap={{ scale: 0.95 }}
-            className="p-2 rounded-xl transition-colors"
-          >
-            <FileText className="w-4 h-4 text-gray-400" />
-          </motion.button>
+        <div>
+          <h3 className="font-semibold text-gray-700">Paste Suspicious Message</h3>
+          <p className="text-xs text-gray-400 mt-0.5">SMS, WhatsApp, or social media messages</p>
         </div>
       </div>
 
@@ -70,18 +56,23 @@ export default function MessageInput({ onAnalyze, loading }) {
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           placeholder="Paste suspicious message here...&#10;&#10;Example: 'Assalam-o-Alaikum, main HBL security team se bol raha hoon. Aap ka account block ho raha hai. Fooran OTP share karein...'"
-          className="w-full border rounded-xl p-4 text-sm resize-none focus:outline-none bg-gray-50 text-gray-700"
+          className="w-full border rounded-xl p-4 text-sm resize-none focus:outline-none bg-gray-50 text-gray-700 transition-all duration-200"
         />
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: charCount > 0 ? 1 : 0 }}
-          className="absolute bottom-3 right-3 flex items-center gap-2"
-        >
-          <div className="flex items-center gap-1">
-            <AlertCircle className="w-3 h-3 text-gray-400" />
-            <span className="text-[10px] text-gray-400">{charCount} characters</span>
-          </div>
-        </motion.div>
+        <AnimatePresence>
+          {charCount > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="absolute bottom-3 right-3 flex items-center gap-2"
+            >
+              <div className="flex items-center gap-1 bg-white/80 backdrop-blur px-2 py-1 rounded-full">
+                <AlertCircle className="w-3 h-3 text-gray-400" />
+                <span className="text-[10px] text-gray-400">{charCount} characters</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className="flex justify-between items-center mt-4">
@@ -91,10 +82,10 @@ export default function MessageInput({ onAnalyze, loading }) {
               key={lang}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: idx * 0.05 }}
+              transition={{ delay: idx * 0.05, duration: 0.2 }}
               whileHover={{ scale: 1.05, backgroundColor: "#eff6ff", color: "#2563eb" }}
               whileTap={{ scale: 0.95 }}
-              className="text-xs bg-white text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg transition-all"
+              className="text-xs bg-white text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg transition-all duration-200"
             >
               {lang}
             </motion.button>
@@ -106,7 +97,7 @@ export default function MessageInput({ onAnalyze, loading }) {
           whileTap={{ scale: 0.98 }}
           onClick={handleSubmit}
           disabled={loading || !text.trim()}
-          className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+          className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50"
         >
           {loading ? (
             <>

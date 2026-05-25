@@ -23,3 +23,31 @@ export async function getHistory() {
   const res = await fetch(`${BASE_URL}/history`);
   return res.json();
 }
+
+// src/services/api.js
+const BASE_URL = "http://localhost:8000";
+
+export async function analyzeText(text) {
+  const res = await fetch(`${BASE_URL}/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  return res.json();
+}
+
+export async function analyzeAudio(file) {
+  const formData = new FormData();
+  formData.append("audio", file);
+
+  const res = await fetch(`${BASE_URL}/analyze-audio`, {
+    method: "POST",
+    body: formData,
+  });
+  return res.json();
+}
+
+export async function getHistory() {
+  const res = await fetch(`${BASE_URL}/history`);
+  return res.json();
+}
