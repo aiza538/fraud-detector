@@ -15,10 +15,11 @@ def analyze_text(text: str):
     # Layer 1 — rule engine (no API needed)
     pattern_result = check_patterns(text)
     if pattern_result:
+        # ✅ DEV FLAG: Mark that this came from Layer 1
+        pattern_result["_source"] = "Rule_Engine" 
         return pattern_result
 
     # Layer 2 — Gemini (API needed)
-    # We now give Gemini a STRICT template for what to do if the message is safe.
     prompt = f"""
 You are a Pakistani cybercrime expert. Analyze this message for fraud.
 Message: "{text}"
@@ -61,13 +62,11 @@ Do not include any extra text, warnings, or markdown. Only the JSON.
             contents=prompt
         )
         
-        # Safe-guard if Gemini returns absolutely nothing
         if not response or not response.text:
             raise ValueError("Empty response from Gemini")
 
         clean = response.text.strip()
 
-        # Strip markdown code blocks if Gemini adds them
         if "```" in clean:
             parts = clean.split("```")
             clean = parts[1] if len(parts) > 1 else parts[0]
@@ -76,7 +75,6 @@ Do not include any extra text, warnings, or markdown. Only the JSON.
 
         result = json.loads(clean.strip())
 
-        # Guarantee all fields exist (frontend crashes without these)
         result.setdefault("fraud", False)
         result.setdefault("type", "Safe Message" if not result.get("fraud") else "Unknown")
         result.setdefault("confidence", 0)
@@ -89,20 +87,19 @@ Do not include any extra text, warnings, or markdown. Only the JSON.
         result.setdefault("complaint", None)
         result.setdefault("transcript", None)
 
+        # ✅ DEV FLAG: Mark that this came from Layer 2
+        result["_source"] = "Gemini_LLM" 
+
         return result
 
     except json.JSONDecodeError:
-        # Gemini gave text instead of JSON
-        return get_safe_fallback("AI could not format the result, but it seems safe.")
+        return get_safe_fallback("AI could not format the result, but it seems safe.", source="Error_JSON")
         
     except Exception as e:
-        # 🔥 THIS FIXES THE 500 ERROR!
-        # If API quota fails, network drops, or safety filter blocks it, we catch it here gracefully.
         print(f"Backend Exception Caught: {e}")
-        return get_safe_fallback(f"Analysis failed ({str(e)[:20]}). Assuming safe.")
+        return get_safe_fallback(f"Analysis failed ({str(e)[:20]}). Assuming safe.", source="Error_Catch")
 
-def get_safe_fallback(msg):
-    """Helper function to always return a valid React frontend object."""
+def get_safe_fallback(msg, source="Fallback"):
     return {
         "fraud": False,
         "type": "Safe / Error",
@@ -114,5 +111,6 @@ def get_safe_fallback(msg):
         "tactics": [],
         "education": [msg],
         "complaint": None,
-        "transcript": None
+        "transcript": None,
+        "_source": source # ✅ Added to fallback too
     }

@@ -5,6 +5,13 @@ with open(patterns_path, "r", encoding="utf-8") as f:
     PATTERNS = json.load(f)
 
 def check_patterns(text: str):
+    # ✅ FIX: If the text is massive (like a full WhatsApp export), 
+    # the rule engine will trigger false positives by finding random 
+    # words scattered across months of chat. 
+    # Bypass the rule engine for large files and let Gemini handle it!
+    if len(text) > 500: 
+        return None 
+
     text_lower = text.lower()
     for pattern in PATTERNS:
         matched = sum(1 for k in pattern["keywords"] if k.lower() in text_lower)
