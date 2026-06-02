@@ -79,4 +79,133 @@
     ],
     "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: Lottery Fraud\n\nI received a fraudulent prize claim message demanding advance fee to release winnings.\n\nLaw: PECA 2016, Section 9"
   }
+,
+  {
+    "type": "HBL Vishing Attack",
+    "keywords": ["otp", "hbl", "account", "band", "block", "security", "transaction"],
+    "min_match": 3,
+    "confidence": 95,
+    "peca": "PECA 2016 — Section 17",
+    "attack": "Vishing",
+    "target": "HBL Bank",
+    "tactics": ["Urgency", "Authority Impersonation", "OTP Phishing"],
+    "education": [
+      "Real banks NEVER call to ask for your OTP.",
+      "Scammer pretends to be bank officer to build false trust.",
+      "Hang up and call HBL helpline: 111-111-425"
+    ],
+    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: Vishing Fraud — HBL Impersonation\n\nI received a call claiming to be HBL security team asking for my OTP under false pretense of account suspension.\n\nLaw: PECA 2016, Section 17"
+  },
+  {
+    "type": "SIM Swap Attack",
+    "keywords": ["sim", "block", "cnic", "verify", "suspend", "network", "ptcl"],
+    "min_match": 3,
+    "confidence": 97,
+    "peca": "PECA 2016 — Section 17 & 26",
+    "attack": "SIM Swap",
+    "target": "All Networks",
+    "tactics": ["CNIC Harvesting", "Identity Theft", "Urgency"],
+    "education": [
+      "Your network NEVER asks for CNIC via SMS.",
+      "SIM swap lets attackers receive your OTPs and drain bank accounts.",
+      "Call your network helpline directly if worried about your SIM."
+    ],
+    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: SIM Swap Fraud Attempt\n\nI received SMS harvesting my CNIC under false pretense of SIM verification.\n\nLaw: PECA 2016, Sections 17 & 26"
+  },
+  {
+    "type": "Fake Job Scam",
+    "keywords": ["job", "salary", "registration", "fee", "jazzcash", "easypaisa", "selected", "work from home"],
+    "min_match": 3,
+    "confidence": 90,
+    "peca": "PECA 2016 — Section 9",
+    "attack": "Advance Fee",
+    "target": "Job Seekers",
+    "tactics": ["Fake Employment", "Advance Fee", "Urgency"],
+    "education": [
+      "Legitimate employers NEVER ask for registration fees.",
+      "Work-from-home with unusually high salary is almost always a scam.",
+      "Report to FIA Cyber Crime: 0800-99828"
+    ],
+    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: Advance Fee Employment Fraud\n\nI received a fraudulent job offer demanding registration fee via JazzCash.\n\nLaw: PECA 2016, Section 9"
+  },
+  {
+    "type": "Meezan Bank Phishing",
+    "keywords": ["meezan", "otp", "account", "verify", "link", "click"],
+    "min_match": 3,
+    "confidence": 93,
+    "peca": "PECA 2016 — Section 17",
+    "attack": "Phishing",
+    "target": "Meezan Bank",
+    "tactics": ["Fake Link", "Urgency", "OTP Phishing"],
+    "education": [
+      "Meezan Bank never sends links asking for OTP or password.",
+      "Never click links in SMS claiming to be from your bank.",
+      "Call Meezan helpline: 111-331-331 to verify."
+    ],
+    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: Meezan Bank Phishing Attempt\n\nI received a phishing SMS impersonating Meezan Bank with a fake link.\n\nLaw: PECA 2016, Section 17"
+  },
+  {
+    "type": "BISP / Ehsaas Program Fraud",
+    "keywords": ["bisp", "ehsaas", "8171", "imran khan", "benazir", "mubarak", "raqam", "rupee", "paisa", "wazeefa"],
+    "min_match": 3,
+    "confidence": 98,
+    "peca": "PECA 2016 — Section 9 & 14",
+    "attack": "Government Impersonation",
+    "target": "Low-Income Citizens",
+    "tactics": ["False Hope", "Government Spoofing", "Advance Fee"],
+    "education": [
+      "Official BISP messages ONLY come from 8171, never from an 11-digit mobile number.",
+      "The government never asks you to send mobile load or Easypaisa to claim relief money.",
+      "Do not share your CNIC with unknown numbers."
+    ],
+    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: BISP / Ehsaas Program Impersonation\n\nI received a fraudulent message from an unauthorized number claiming I won BISP funds, asking for a fee to release the money.\n\nLaw: PECA 2016, Section 9"
+  },
+  {
+    "type": "Customs / Parcel Scam",
+    "keywords": ["parcel", "customs", "clearance", "dollar", "airport", "uk", "usa", "delivery", "gift", "charges"],
+    "min_match": 3,
+    "confidence": 94,
+    "peca": "PECA 2016 — Section 9",
+    "attack": "Advance Fee / Romance Scam",
+    "target": "General Public",
+    "tactics": ["Greed", "Fake Authority", "Urgency"],
+    "education": [
+      "Scammers pose as foreigners sending expensive gifts (iPhones, jewelry).",
+      "They will claim the parcel is stuck at Pakistan Customs and demand a 'clearance fee' via bank transfer.",
+      "Customs officials do not call individuals on WhatsApp to demand clearance fees into personal accounts."
+    ],
+    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: Fake Customs Parcel Scam\n\nAn individual impersonating a customs officer/delivery agent demanded money to clear a fake parcel sent from abroad.\n\nLaw: PECA 2016, Section 9"
+  },
+  {
+    "type": "WhatsApp Family Emergency",
+    "keywords": ["hospital", "accident", "urgent", "easypaisa", "bhej", "madad", "emergency", "dost", "paise"],
+    "min_match": 3,
+    "confidence": 88,
+    "peca": "PECA 2016 — Section 14",
+    "attack": "Impersonation",
+    "target": "General Public",
+    "tactics": ["Fear", "Urgency", "Social Engineering"],
+    "education": [
+      "Scammers hack WhatsApp accounts of friends/family and message their contacts for urgent money.",
+      "Always call the person directly on a regular phone call to verify their voice before sending any money.",
+      "Never send money to an unknown Easypaisa/JazzCash account just because a contact asked on WhatsApp."
+    ],
+    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: WhatsApp Hacking & Impersonation\n\nSomeone impersonated my contact using a compromised WhatsApp account to fraudulently demand money for a fake medical emergency.\n\nLaw: PECA 2016, Section 14"
+  },
+  {
+    "type": "PTA Device Tax Scam",
+    "keywords": ["pta", "dirbs", "imei", "tax", "block", "approve", "fbr", "register"],
+    "min_match": 3,
+    "confidence": 92,
+    "peca": "PECA 2016 — Section 14",
+    "attack": "Phishing / Fake Authority",
+    "target": "Smartphone Users",
+    "tactics": ["Threat of Disconnection", "Authority Impersonation", "Malicious Links"],
+    "education": [
+      "PTA does not send random SMS with links to pay device taxes.",
+      "Always check your IMEI status on the official PTA DIRBS website or by dialing *8484#.",
+      "Never enter your credit card details on links sent via SMS."
+    ],
+    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: PTA Impersonation & Phishing\n\nI received a fake SMS claiming my mobile device will be blocked by PTA unless I click a malicious link to pay tax.\n\nLaw: PECA 2016, Section 14"
+  }
 ]

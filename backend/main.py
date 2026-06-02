@@ -1,44 +1,86 @@
-from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from fraud_detector import analyze_text
 from audio_handler import analyze_audio
-import shutil, os
+import os
 
-app = FastAPI()
+app = Flask(__name__)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ✅ More explicit CORS config
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-class TextRequest(BaseModel):
-    text: str
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Tab 1 — Paste Text
-@app.post("/analyze")
-async def analyze(req: TextRequest):
-    return analyze_text(req.text)
+@app.route("/")
+def home():
+    return jsonify({"status": "Fraud Detector API is running"})
 
-# Tab 2 — Upload File (.txt)
-@app.post("/analyze-file")
-async def analyze_file(file: UploadFile = File(...)):
-    contents = await file.read()
-    text = contents.decode("utf-8")
-    return analyze_text(text)
+@app.route("/analyze/text", methods=["POST", "OPTIONS"])
+def analyze_text_route():
+    if request.method == "OPTIONS":
+        return jsonify({}), 200          # ✅ handle preflight manually too
 
-# Tab 3 — Upload Audio
-@app.post("/analyze-audio")
-async def analyze_audio_endpoint(file: UploadFile = File(...)):
-    temp_path = f"temp_{file.filename}"
-    with open(temp_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    result = analyze_audio(temp_path)
-    os.remove(temp_path)
-    return result
+    data = request.get_json()
 
-@app.get("/health")
-async def health():
-    return {"status": "running"}
+    if not data or "text" not in data:
+        return jsonify({"error": "No text provided"}), 400
+
+    text = data["text"].strip()
+    if len(text) < 3:
+        return jsonify({"error": "Text too short"}), 400
+
+    try:
+        result = analyze_text(text)
+        return jsonify(result)
+    except Exception as e:
+        error_msg = str(e)
+        # ✅ Give a clear message for quota errors
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+            return jsonify({
+                "error": "Gemini quota exceeded. Wait a few minutes and try again, or test with a message that matches scam patterns (OTP, HBL, block) — those use the rule engine and don't need Gemini."
+            }), 429
+        return jsonify({"error": error_msg}), 500
+
+@app.route("/analyze/audio", methods=["POST", "OPTIONS"])
+def analyze_audio_route():
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+
+    if "file" not in request.files:
+        return jsonify({"error": "No audio file provided"}), 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "Empty filename"}), 400
+
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file.save(file_path)
+
+    try:
+        result = analyze_audio(file_path)
+        return jsonify(result)
+    except Exception as e:
+        error_msg = str(e)
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+            return jsonify({"error": "Gemini quota exceeded. Try again in a few minutes."}), 429
+        return jsonify({"error": error_msg}), 500
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+
+# main.py mein yeh route add karo — sirf testing ke liye
+@app.route("/test-keys")
+def test_keys():
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    assembly_key = os.getenv("ASSEMBLYAI_API_KEY")
+    return jsonify({
+        "gemini_loaded": gemini_key is not None,
+        "gemini_preview": gemini_key[:12] + "..." if gemini_key else "MISSING",
+        "assemblyai_loaded": assembly_key is not None,
+        "assemblyai_preview": assembly_key[:12] + "..." if assembly_key else "MISSING"
+    })
+
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)
