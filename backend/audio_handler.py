@@ -4,15 +4,18 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
+
 aai.settings.api_key = os.getenv("ASSEMBLYAI_API_KEY")
 
 def analyze_audio(file_path: str):
     transcriber = aai.Transcriber()
     
+    # ✅ New config — no language_detection, use universal-3-pro model
     config = aai.TranscriptionConfig(
-        language_detection=True  # auto detect Urdu/English
+        speech_model=aai.SpeechModel.universal,   # supports Urdu + English + Roman Urdu
+        language_code="ur",                        # set to Urdu (handles Roman Urdu too)
     )
-    
+
     transcript = transcriber.transcribe(file_path, config=config)
 
     if transcript.status == aai.TranscriptStatus.error:
