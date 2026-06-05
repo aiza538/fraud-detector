@@ -25,9 +25,9 @@ export default function Navbar() {
             </motion.div>
             <div>
               <h1 className="font-bold text-lg text-white tracking-tight">
-                FraudShield <span className="text-blue-300">Pakistan</span>
+                FraudGuard <span className="text-blue-300">PK</span>
               </h1>
-              <p className="text-[9px] text-blue-200 tracking-wide">FIA Cyber Crime Wing</p>
+              <p className="text-[9px] text-blue-200 tracking-wShieldide">FIA Cyber Crime Wing</p>
             </div>
           </Link>
 
