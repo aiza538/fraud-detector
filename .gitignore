@@ -26,6 +26,6 @@ dist-ssr
 *.sw?
 
 
-
-
+prompt.txt
+context.md
 backend/.env

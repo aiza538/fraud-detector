@@ -5,10 +5,31 @@ import { AlertTriangle, CheckCircle, Target, Scale, Languages, Zap } from "lucid
 export default function ResultCard({ result }) {
   if (!result) return null;
 
+  // ✅ If backend returned an error object, show it cleanly
+  if (result.error) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-2xl p-6 shadow-xl border border-red-100"
+      >
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
+          <AlertTriangle className="w-8 h-8 text-red-500" />
+          <div>
+            <h2 className="text-lg font-bold text-red-700">Analysis Failed</h2>
+            <p className="text-sm text-red-500 mt-1">{result.error}</p>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // ✅ Safe fallbacks for every field
+  const tactics = result.tactics || [];
   const stats = [
-    { icon: Target, label: "Attack Type", value: result.type, color: "text-red-500", delay: 0.1 },
-    { icon: Scale, label: "Legal Reference", value: result.peca, color: "text-blue-500", delay: 0.2 },
-    { icon: Languages, label: "Language", value: result.language, color: "text-purple-500", delay: 0.3 },
+    { icon: Target, label: "Attack Type", value: result.type || "Unknown", color: "text-red-500", delay: 0.1 },
+    { icon: Scale, label: "Legal Reference", value: result.peca || "N/A", color: "text-blue-500", delay: 0.2 },
+    { icon: Languages, label: "Language", value: result.language || "Unknown", color: "text-purple-500", delay: 0.3 },
   ];
 
   return (
@@ -19,7 +40,7 @@ export default function ResultCard({ result }) {
       className="bg-white rounded-2xl p-6 space-y-5 shadow-xl border border-gray-100"
     >
       {/* Header Badge */}
-      <motion.div 
+      <motion.div
         initial={{ x: -20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ delay: 0.1 }}
@@ -40,7 +61,9 @@ export default function ResultCard({ result }) {
           <h2 className={`text-xl font-bold ${result.fraud ? 'text-red-700' : 'text-green-700'}`}>
             {result.fraud ? "⚠️ Fraud Detected" : "✅ Safe Message"}
           </h2>
-          <p className="text-sm opacity-70">Confidence: {result.confidence}% • FIA Verified</p>
+          <p className="text-sm opacity-70">
+            Confidence: {result.confidence ?? 0}% • FIA Verified
+          </p>
         </div>
       </motion.div>
 
@@ -62,8 +85,8 @@ export default function ResultCard({ result }) {
         ))}
       </div>
 
-      {/* Tactics Tags */}
-      {result.tactics.length > 0 && (
+      {/* Tactics Tags — only show if tactics exist */}
+      {tactics.length > 0 && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -73,7 +96,7 @@ export default function ResultCard({ result }) {
             <Zap className="w-3 h-3" /> Manipulation Tactics Detected
           </p>
           <div className="flex flex-wrap gap-2">
-            {result.tactics.map((tactic, idx) => (
+            {tactics.map((tactic, idx) => (
               <motion.span
                 key={tactic}
                 initial={{ scale: 0, opacity: 0 }}
@@ -90,16 +113,18 @@ export default function ResultCard({ result }) {
       )}
 
       {/* Targeted Entity */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-        className="bg-yellow-50 border border-yellow-200 rounded-xl p-3"
-      >
-        <p className="text-xs text-yellow-700">
-          🎯 <strong>Targeted:</strong> {result.target}
-        </p>
-      </motion.div>
+      {result.target && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="bg-yellow-50 border border-yellow-200 rounded-xl p-3"
+        >
+          <p className="text-xs text-yellow-700">
+            🎯 <strong>Targeted:</strong> {result.target}
+          </p>
+        </motion.div>
+      )}
     </motion.div>
   );
 }

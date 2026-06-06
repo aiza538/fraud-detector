@@ -12,20 +12,20 @@ import { fakeResult, fakeSafe } from "../mockData";
 
 // Same animation variants for all tabs
 const tabVariants = {
-  initial: { 
-    opacity: 0, 
-    y: 30 
+  initial: {
+    opacity: 0,
+    y: 30
   },
-  animate: { 
-    opacity: 1, 
+  animate: {
+    opacity: 1,
     y: 0,
     transition: {
       duration: 0.4,
       ease: "easeOut"
     }
   },
-  exit: { 
-    opacity: 0, 
+  exit: {
+    opacity: 0,
     y: -30,
     transition: {
       duration: 0.3,
@@ -39,40 +39,126 @@ export default function Analyzer() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const handleAnalyze = (text) => {
+
+  const handleAnalyze = async (text) => {
     setLoading(true);
     setResult(null);
-    
-    setTimeout(() => {
-      const lower = text.toLowerCase();
-      const isFraud = lower.includes("otp") || lower.includes("block") || 
-                      lower.includes("share") || lower.includes("urgent") ||
-                      lower.includes("prize") || lower.includes("winner");
-      setResult(isFraud ? fakeResult : fakeSafe);
+    try {
+      const response = await fetch("http://localhost:5000/analyze/text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      const data = await response.json();
+      console.log("Analysis response:", data);
+
+      // ✅ Check for error field from backend
+      if (data.error) {
+        if (data.error.includes("quota") || data.error.includes("429")) {
+          toast.error("⏳ Gemini quota hit. Test with HBL/OTP messages — those work offline!");
+        } else {
+          toast.error("❌ " + data.error);
+        }
+        return; // ✅ Don't setResult — stops ResultCard from crashing
+      }
+
+      setResult(data);
+      toast.success("Analysis complete!");
+
+    } catch (err) {
+      if (err.message.includes("Failed to fetch")) {
+        toast.error("❌ Backend not running. Start: python main.py");
+      } else {
+        toast.error("❌ " + err.message);
+      }
+    } finally {
       setLoading(false);
-    }, 2000);
+    }
   };
 
-  const handleFileAnalyze = (content) => {
+  // ✅ REAL FILE HANDLER (for .txt files)
+  const handleFileAnalyze = async (content) => {
     setLoading(true);
     setResult(null);
-    
-    setTimeout(() => {
-      setResult(fakeResult);
+    try {
+      const response = await fetch("http://localhost:5000/analyze/text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: content }),
+      });
+      const data = await response.json();
+      console.log("File analysis response:", data);
+      if (data.error) {
+        if (data.error.includes("quota") || data.error.includes("429")) {
+          toast.error("⏳ Gemini quota hit. Test with HBL/OTP messages — those work offline!");
+        } else {
+          toast.error("❌ " + data.error);
+        }
+        return; // ✅ Don't setResult — stops ResultCard from crashing
+      }
+
+
+      setResult(data);
+      toast.success("File analysis complete!");
+    }
+    // ✅ Replace the catch block in handleAnalyze
+    catch (err) {
+      if (err.message.includes("Failed to fetch")) {
+        toast.error("❌ Backend not running. Start with: python main.py");
+      } else {
+        toast.error("❌ " + (err.message || "Analysis failed"));
+      }
+    }
+    finally {
       setLoading(false);
-    }, 2000);
+    }
   };
 
-  const handleAudioAnalyze = (audioFile) => {
+  // ✅ REAL AUDIO HANDLER
+  const handleAudioAnalyze = async (audioFile) => {
     setLoading(true);
     setResult(null);
-    
-    setTimeout(() => {
+    try {
+      toast("⏳ Transcribing audio... this takes 20-40 seconds", {
+        duration: 5000,
+        icon: "🎙️"
+      });
+      const formData = new FormData();
+      formData.append("file", audioFile);
+      const response = await fetch("http://localhost:5000/analyze/audio", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+      console.log("Audio analysis response:", data);
+
+      if (data.error) {
+        if (data.error.includes("quota") || data.error.includes("429")) {
+          toast.error("⏳ Gemini quota hit. Test with HBL/OTP messages — those work offline!");
+        } else {
+          toast.error("❌ " + data.error);
+        }
+        return; // ✅ Don't setResult — stops ResultCard from crashing
+      }
+
+
+      setResult(data);
       toast.success("Audio analysis complete!");
-      setResult(fakeResult);
+    }
+    // ✅ Replace the catch block in handleAnalyze
+    catch (err) {
+      if (err.message.includes("Failed to fetch")) {
+        toast.error("❌ Backend not running. Start with: python main.py");
+      } else {
+        toast.error("❌ " + (err.message || "Analysis failed"));
+      }
+    }
+    finally {
       setLoading(false);
-    }, 2500);
+    }
   };
+
 
   const tabs = [
     { id: "text", label: "Paste Text", icon: MessageSquare },
@@ -83,15 +169,15 @@ export default function Analyzer() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
       <div className="max-w-3xl mx-auto px-4 py-12">
-        
-        {/* Hero Section */}
-        <motion.div 
+
+      {/* Hero Section */}
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
           className="text-center mb-10"
         >
-          <motion.div 
+          <motion.div
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.1 }}
@@ -101,17 +187,17 @@ export default function Analyzer() {
               <Shield className="w-12 h-12 text-white" />
             </div>
           </motion.div>
-          
-          <motion.h1 
+
+          <motion.h1
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.5 }}
             className="text-4xl font-bold bg-gradient-to-r from-blue-700 to-blue-900 bg-clip-text text-transparent mb-3"
           >
-            FraudShield Pakistan
+            FraudGuard <span className="text-green-600">PK</span>
           </motion.h1>
-          
-          <motion.p 
+
+          <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3, duration: 0.5 }}
@@ -119,8 +205,8 @@ export default function Analyzer() {
           >
             AI-powered scam detection for text, files & audio
           </motion.p>
-          
-          <motion.div 
+
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.5 }}
@@ -129,14 +215,12 @@ export default function Analyzer() {
             <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
               PECA 2016 Compliant
             </span>
-            <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
-              FIA Approved
-            </span>
+            
           </motion.div>
         </motion.div>
 
         {/* Tabs */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.4 }}
@@ -149,8 +233,8 @@ export default function Analyzer() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-all duration-200
-                ${activeTab === tab.id 
-                  ? 'bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg' 
+                ${activeTab === tab.id
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg'
                   : 'text-gray-600 hover:bg-gray-100'
                 }`}
             >
@@ -182,9 +266,9 @@ export default function Analyzer() {
               animate="animate"
               exit="exit"
             >
-              <FileUploader 
-                onFileAnalyze={handleFileAnalyze} 
-                loading={loading} 
+              <FileUploader
+                onFileAnalyze={handleFileAnalyze}
+                loading={loading}
                 type="text"
               />
             </motion.div>
@@ -198,9 +282,9 @@ export default function Analyzer() {
               animate="animate"
               exit="exit"
             >
-              <FileUploader 
-                onFileAnalyze={handleAudioAnalyze} 
-                loading={loading} 
+              <FileUploader
+                onFileAnalyze={handleAudioAnalyze}
+                loading={loading}
                 type="audio"
               />
             </motion.div>
@@ -217,12 +301,12 @@ export default function Analyzer() {
               transition={{ duration: 0.3 }}
               className="text-center py-12"
             >
-              <motion.div 
+              <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
                 className="inline-block w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"
               />
-              <motion.p 
+              <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
@@ -253,14 +337,14 @@ export default function Analyzer() {
         </AnimatePresence>
 
         {/* Footer */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6, duration: 0.5 }}
           className="mt-12 pt-6 border-t border-blue-100 text-center"
         >
           <p className="text-xs text-gray-400">
-            🔒 Your files are encrypted • Supports .txt, .mp3, .wav, .m4a • Powered by FIA Cyber Crime Wing Pakistan
+            🔒 Your files are encrypted • Supports .txt, .mp3, .wav, .m4a • 
           </p>
         </motion.div>
       </div>
