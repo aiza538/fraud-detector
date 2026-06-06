@@ -51,7 +51,7 @@ export default function Analyzer() {
       });
 
       const data = await response.json();
-      condole.log("Analysis response:", data);
+      console.log("Analysis response:", data);
 
       // ✅ Check for error field from backend
       if (data.error) {
@@ -170,7 +170,7 @@ export default function Analyzer() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
       <div className="max-w-3xl mx-auto px-4 py-12">
 
-        {/* Hero Section */}
+      {/* Hero Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -194,7 +194,7 @@ export default function Analyzer() {
             transition={{ delay: 0.2, duration: 0.5 }}
             className="text-4xl font-bold bg-gradient-to-r from-blue-700 to-blue-900 bg-clip-text text-transparent mb-3"
           >
-            FraudGuard PK
+            FraudGuard <span className="text-green-600">PK</span>
           </motion.h1>
 
           <motion.p

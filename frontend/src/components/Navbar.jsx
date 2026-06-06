@@ -1,5 +1,4 @@
-// src/components/Navbar.jsx
-import { Shield, Bell } from "lucide-react";
+import { Shield } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 
@@ -25,25 +24,14 @@ export default function Navbar() {
             </motion.div>
             <div>
               <h1 className="font-bold text-lg text-white tracking-tight">
-                FraudGuard <span className="text-blue-300">PK</span>
+                FraudGuard <span className="text-green-400">PK</span>
               </h1>
-              <p className="text-[9px] text-blue-200 tracking-wShieldide">FIA Cyber Crime Wing</p>
+              <p className="text-[9px] text-blue-200 tracking-wide">FIA Cyber Crime Wing</p>
             </div>
           </Link>
 
-          {/* Notification */}
-          <motion.button 
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="p-2 hover:bg-white/10 rounded-lg transition-all duration-300 relative"
-          >
-            <Bell className="w-5 h-5 text-blue-200" />
-            <motion.span 
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-              className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"
-            ></motion.span>
-          </motion.button>
+          {/* Note: Bell notification removed as requested */}
+          
         </div>
       </div>
     </motion.nav>
