@@ -1,4 +1,7 @@
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+// src/services/api.js
+
+// Hardcoded to guarantee connection to Hugging Face
+const API_BASE = "https://l-law-liet-fraudguard-pk-backend.hf.space"; 
 
 export const analyzeText = async (text) => {
   const response = await fetch(`${API_BASE}/analyze/text`, {
