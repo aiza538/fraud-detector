@@ -91,8 +91,11 @@ from flask_cors import CORS
 from fraud_detector import analyze_text
 from audio_handler import analyze_audio
 import os
+import logging
+
 
 app = Flask(__name__)
+
 
 # ✅ Enable CORS for your local testing AND your live Netlify app
 CORS(app, resources={

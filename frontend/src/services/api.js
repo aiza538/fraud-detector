@@ -4,6 +4,7 @@
 const API_BASE = "https://l-law-liet-fraudguard-pk-backend.hf.space"; 
 
 export const analyzeText = async (text) => {
+  console.log(`[🚀 API Request] Sending text analysis to: ${API_BASE}/analyze/text`);
   const response = await fetch(`${API_BASE}/analyze/text`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -13,6 +14,7 @@ export const analyzeText = async (text) => {
 };
 
 export const analyzeAudio = async (audioFile) => {
+  console.log(`[🚀 API Request] Sending audio analysis to: ${API_BASE}/analyze/audio`);
   const formData = new FormData();
   formData.append("file", audioFile);
   const response = await fetch(`${API_BASE}/analyze/audio`, {

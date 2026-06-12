@@ -2,6 +2,9 @@ from google import genai
 from pattern_matcher import check_patterns
 from dotenv import load_dotenv
 import os, json
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 load_dotenv()
 
@@ -12,6 +15,8 @@ if not GEMINI_KEY:
 client = genai.Client(api_key=GEMINI_KEY)
 
 def analyze_text(text: str):
+
+    logging.info("[🔍 FraudGuard Backend] Received a text analysis request")
     # ✅ TRUNCATE MASSIVE FILES: Protect your 250k token quota!
     # A 2-year WhatsApp log is too huge. We only care about the most recent 
     # messages where the scam actually happens. Keep the last 15,000 characters.
