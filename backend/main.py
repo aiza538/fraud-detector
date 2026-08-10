@@ -98,12 +98,13 @@ app = Flask(__name__)
 
 
 # ✅ Enable CORS for your local testing AND your live Netlify app
-CORS(app, resources={
-    r"/*": {"origins": [
-        "http://localhost:5173", 
-        "https://frauddetectionsystem.netlify.app"
-    ]}
-})
+# CORS(app, resources={
+#     r"/*": {"origins": [
+#         "http://localhost:5173", 
+#         "https://frauddetectionsystem.netlify.app"
+#     ]}
+# })
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.route('/', methods=['GET'])
 def health_check():
@@ -141,6 +142,52 @@ def handle_audio():
         os.remove(file_path)
 
     return jsonify(result)
+
+# Verified legitimate Pakistani bank/telco UAN numbers
+LEGITIMATE_NUMBERS = [
+    "111124444",   # JazzCash UAN
+    "111003737",   # Easypaisa UAN
+    # Aur banks ke verified UAN yahan add karte rahna jaise confirm ho
+]
+
+# Community-reported scam numbers (yahan grow hoga jaise reports aayenge)
+REPORTED_SCAM_NUMBERS = []
+
+@app.route('/check-number', methods=['POST'])
+def check_number():
+    data = request.json
+    raw_number = data.get('number', '')
+
+    # Number ko clean karo (spaces, dashes, +92 hatao for comparison)
+    cleaned = raw_number.replace(" ", "").replace("-", "").replace("+92", "").lstrip("0")
+
+    if cleaned in REPORTED_SCAM_NUMBERS:
+        return jsonify({
+            "status": "scam",
+            "message": "This number has been reported as fraudulent by other users.",
+            "confidence": "high"
+        })
+
+    if cleaned in LEGITIMATE_NUMBERS:
+        return jsonify({
+            "status": "safe",
+            "message": "Verified official number.",
+            "confidence": "high"
+        })
+
+    # Agar mobile number (03xx) hai aur koi bank claim kar raha ho — unknown/caution
+    if cleaned.startswith("3") and len(cleaned) == 10:
+        return jsonify({
+            "status": "unknown",
+            "message": "Personal mobile number — banks typically call from official UAN lines, not personal numbers.",
+            "confidence": "medium"
+        })
+
+    return jsonify({
+        "status": "unknown",
+        "message": "Number not in database. Verify independently before sharing information.",
+        "confidence": "low"
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
