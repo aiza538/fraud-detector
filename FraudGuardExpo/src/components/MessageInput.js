@@ -10,7 +10,31 @@ import {
   View,
 } from "react-native";
 
-export default function MessageInput({ onAnalyze, loading }) {
+const DEFAULT_PLACEHOLDER = `Paste suspicious message here...\n\nExample: "Assalam-o-Alaikum, main HBL security team se bol raha hoon. Aap ka account block ho raha hai. Fooran OTP share karein..."`;
+
+export const WHATSAPP_SAMPLES = [
+  {
+    label: "Account ban hoax",
+    text: "Zaroori Notice! Agar aap ne ye message 10 groups mein forward nahi kiya to aap ka WhatsApp account 24 hour mein band ho jayega. Verification code isi number par bhejein warna account recover nahi hoga. Share with everyone!",
+  },
+  {
+    label: "Investment group",
+    text: "Welcome to our Premium Trading Group! Rozana sirf 15 minute ki trading se 30000 monthly profit guaranteed. Sirf 5000 registration fee JazzCash par bhejein, dollar returns daily milege. Members join kar rahe hain, limited slots!",
+  },
+  {
+    label: "Cloned voice emergency",
+    text: "Beta hospital mein accident mein hai, meri awaz sun ke foran paise bhejo. Ye audio message suno, main hi bol raha hoon. Easypaisa account pe 50 hazar bhej do, doctor waiting hai. Kisi ko mat batana pehle paise bhejo.",
+  },
+];
+
+export default function MessageInput({
+  onAnalyze,
+  loading,
+  title = "Paste Suspicious Message",
+  subtitle = "SMS, WhatsApp, or social media messages",
+  placeholder = DEFAULT_PLACEHOLDER,
+  samples = null,
+}) {
   const [text, setText] = useState("");
 
   const handleSubmit = () => {
@@ -30,10 +54,21 @@ export default function MessageInput({ onAnalyze, loading }) {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>Paste Suspicious Message</Text>
-      <Text style={styles.subtitle}>
-        SMS, WhatsApp, or social media messages
-      </Text>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.subtitle}>{subtitle}</Text>
+
+      {samples && (
+        <View style={styles.sampleRow}>
+          {samples.map((s) => (
+            <TouchableOpacity
+              key={s.label}
+              style={styles.sampleChip}
+              onPress={() => setText(s.text)}>
+              <Text style={styles.sampleChipText}>{s.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       <TextInput
         style={styles.textArea}
@@ -41,7 +76,7 @@ export default function MessageInput({ onAnalyze, loading }) {
         numberOfLines={6}
         value={text}
         onChangeText={setText}
-        placeholder={`Paste suspicious message here...\n\nExample: "Assalam-o-Alaikum, main HBL security team se bol raha hoon. Aap ka account block ho raha hai. Fooran OTP share karein..."`}
+        placeholder={placeholder}
         placeholderTextColor="#9ca3af"
       />
 
@@ -107,7 +142,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-  buttonDisabled: { backgroundColor: "#93b4f0", shadowOpacity: 0 },
-  buttonDisabled: { opacity: 0.5 },
+  buttonDisabled: { backgroundColor: "#93b4f0", shadowOpacity: 0, opacity: 0.5 },
   buttonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  sampleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  sampleChip: {
+    backgroundColor: "#dcfce7",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#86efac",
+  },
+  sampleChipText: { fontSize: 11, fontWeight: "600", color: "#166534" },
 });

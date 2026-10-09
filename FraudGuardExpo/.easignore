@@ -1,0 +1,13 @@
+node_modules/
+.expo/
+.expo-shared/
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+modules/expo-call-guard/android/build/
+modules/**/android/.gradle/
+scripts/logs/
+*.log
+*.jks
+*.keystore

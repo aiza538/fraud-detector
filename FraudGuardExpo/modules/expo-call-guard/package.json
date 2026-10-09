@@ -1,0 +1,9 @@
+{
+  "name": "expo-call-guard",
+  "version": "0.1.0",
+  "main": "index.js",
+  "dependencies": {},
+  "devDependencies": {
+    "expo-module-scripts": "^4.1.4"
+  }
+}
