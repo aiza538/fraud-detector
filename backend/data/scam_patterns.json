@@ -2,6 +2,7 @@
   {
     "type": "HBL Vishing Attack",
     "keywords": ["otp", "hbl", "account", "band", "block", "security", "transaction"],
+    "anchors": ["otp", "hbl"],
     "min_match": 3,
     "confidence": 95,
     "peca": "PECA 2016 — Section 17",
@@ -18,6 +19,7 @@
   {
     "type": "SIM Swap Attack",
     "keywords": ["sim", "block", "cnic", "verify", "suspend", "network", "ptcl"],
+    "anchors": ["cnic", "ptcl", "sim"],
     "min_match": 3,
     "confidence": 97,
     "peca": "PECA 2016 — Section 17 & 26",
@@ -34,6 +36,7 @@
   {
     "type": "Fake Job Scam",
     "keywords": ["job", "salary", "registration", "fee", "jazzcash", "easypaisa", "selected", "work from home"],
+    "anchors": ["fee", "jazzcash", "easypaisa", "work from home"],
     "min_match": 3,
     "confidence": 90,
     "peca": "PECA 2016 — Section 9",
@@ -50,6 +53,7 @@
   {
     "type": "Meezan Bank Phishing",
     "keywords": ["meezan", "otp", "account", "verify", "link", "click"],
+    "anchors": ["meezan", "otp"],
     "min_match": 3,
     "confidence": 93,
     "peca": "PECA 2016 — Section 17",
@@ -66,6 +70,7 @@
   {
     "type": "Prize/Lottery Scam",
     "keywords": ["congratulations", "winner", "prize", "lucky draw", "send", "charges", "claim"],
+    "anchors": ["winner", "prize", "lucky draw", "congratulations"],
     "min_match": 3,
     "confidence": 92,
     "peca": "PECA 2016 — Section 9",
@@ -78,75 +83,11 @@
       "Block and report the number immediately."
     ],
     "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: Lottery Fraud\n\nI received a fraudulent prize claim message demanding advance fee to release winnings.\n\nLaw: PECA 2016, Section 9"
-  }
-,
-  {
-    "type": "HBL Vishing Attack",
-    "keywords": ["otp", "hbl", "account", "band", "block", "security", "transaction"],
-    "min_match": 3,
-    "confidence": 95,
-    "peca": "PECA 2016 — Section 17",
-    "attack": "Vishing",
-    "target": "HBL Bank",
-    "tactics": ["Urgency", "Authority Impersonation", "OTP Phishing"],
-    "education": [
-      "Real banks NEVER call to ask for your OTP.",
-      "Scammer pretends to be bank officer to build false trust.",
-      "Hang up and call HBL helpline: 111-111-425"
-    ],
-    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: Vishing Fraud — HBL Impersonation\n\nI received a call claiming to be HBL security team asking for my OTP under false pretense of account suspension.\n\nLaw: PECA 2016, Section 17"
-  },
-  {
-    "type": "SIM Swap Attack",
-    "keywords": ["sim", "block", "cnic", "verify", "suspend", "network", "ptcl"],
-    "min_match": 3,
-    "confidence": 97,
-    "peca": "PECA 2016 — Section 17 & 26",
-    "attack": "SIM Swap",
-    "target": "All Networks",
-    "tactics": ["CNIC Harvesting", "Identity Theft", "Urgency"],
-    "education": [
-      "Your network NEVER asks for CNIC via SMS.",
-      "SIM swap lets attackers receive your OTPs and drain bank accounts.",
-      "Call your network helpline directly if worried about your SIM."
-    ],
-    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: SIM Swap Fraud Attempt\n\nI received SMS harvesting my CNIC under false pretense of SIM verification.\n\nLaw: PECA 2016, Sections 17 & 26"
-  },
-  {
-    "type": "Fake Job Scam",
-    "keywords": ["job", "salary", "registration", "fee", "jazzcash", "easypaisa", "selected", "work from home"],
-    "min_match": 3,
-    "confidence": 90,
-    "peca": "PECA 2016 — Section 9",
-    "attack": "Advance Fee",
-    "target": "Job Seekers",
-    "tactics": ["Fake Employment", "Advance Fee", "Urgency"],
-    "education": [
-      "Legitimate employers NEVER ask for registration fees.",
-      "Work-from-home with unusually high salary is almost always a scam.",
-      "Report to FIA Cyber Crime: 0800-99828"
-    ],
-    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: Advance Fee Employment Fraud\n\nI received a fraudulent job offer demanding registration fee via JazzCash.\n\nLaw: PECA 2016, Section 9"
-  },
-  {
-    "type": "Meezan Bank Phishing",
-    "keywords": ["meezan", "otp", "account", "verify", "link", "click"],
-    "min_match": 3,
-    "confidence": 93,
-    "peca": "PECA 2016 — Section 17",
-    "attack": "Phishing",
-    "target": "Meezan Bank",
-    "tactics": ["Fake Link", "Urgency", "OTP Phishing"],
-    "education": [
-      "Meezan Bank never sends links asking for OTP or password.",
-      "Never click links in SMS claiming to be from your bank.",
-      "Call Meezan helpline: 111-331-331 to verify."
-    ],
-    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: Meezan Bank Phishing Attempt\n\nI received a phishing SMS impersonating Meezan Bank with a fake link.\n\nLaw: PECA 2016, Section 17"
   },
   {
     "type": "BISP / Ehsaas Program Fraud",
     "keywords": ["bisp", "ehsaas", "8171", "imran khan", "benazir", "mubarak", "raqam", "rupee", "paisa", "wazeefa"],
+    "anchors": ["bisp", "ehsaas", "8171", "benazir", "imran khan", "wazeefa"],
     "min_match": 3,
     "confidence": 98,
     "peca": "PECA 2016 — Section 9 & 14",
@@ -163,6 +104,7 @@
   {
     "type": "Customs / Parcel Scam",
     "keywords": ["parcel", "customs", "clearance", "dollar", "airport", "uk", "usa", "delivery", "gift", "charges"],
+    "anchors": ["customs", "clearance"],
     "min_match": 3,
     "confidence": 94,
     "peca": "PECA 2016 — Section 9",
@@ -179,6 +121,7 @@
   {
     "type": "WhatsApp Family Emergency",
     "keywords": ["hospital", "accident", "urgent", "easypaisa", "bhej", "madad", "emergency", "dost", "paise"],
+    "anchors": ["easypaisa", "bhej", "paise"],
     "min_match": 3,
     "confidence": 88,
     "peca": "PECA 2016 — Section 14",
@@ -195,6 +138,7 @@
   {
     "type": "PTA Device Tax Scam",
     "keywords": ["pta", "dirbs", "imei", "tax", "block", "approve", "fbr", "register"],
+    "anchors": ["dirbs", "imei"],
     "min_match": 3,
     "confidence": 92,
     "peca": "PECA 2016 — Section 14",
@@ -207,5 +151,56 @@
       "Never enter your credit card details on links sent via SMS."
     ],
     "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: PTA Impersonation & Phishing\n\nI received a fake SMS claiming my mobile device will be blocked by PTA unless I click a malicious link to pay tax.\n\nLaw: PECA 2016, Section 14"
+  },
+  {
+    "type": "WhatsApp Account Ban Hoax",
+    "keywords": ["whatsapp", "ban", "verification", "code", "24 hour", "band", "recover", "forward", "group"],
+    "anchors": ["24 hour", "ban", "recover"],
+    "min_match": 3,
+    "confidence": 96,
+    "peca": "PECA 2016 — Section 14",
+    "attack": "Account Takeover",
+    "target": "WhatsApp Users",
+    "tactics": ["False Threat", "OTP Harvesting", "Chain Forwarding"],
+    "education": [
+      "WhatsApp NEVER bans accounts for not forwarding messages — the '24 hour ban' chain is a classic hoax.",
+      "Anyone asking for your 6-digit WhatsApp verification code is trying to HIJACK your account.",
+      "Enable two-step verification: WhatsApp Settings > Account > Two-step verification."
+    ],
+    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: WhatsApp Account Hijacking Attempt\n\nI received a message threatening to ban my WhatsApp account and requesting my verification code, which is a known account takeover scam.\n\nLaw: PECA 2016, Section 14"
+  },
+  {
+    "type": "WhatsApp Investment Group Scam",
+    "keywords": ["invest", "profit", "trading", "group", "dollar", "daily", "return", "member", "telegram", "crypto"],
+    "anchors": ["profit", "daily", "return"],
+    "min_match": 3,
+    "confidence": 91,
+    "peca": "PECA 2016 — Section 9",
+    "attack": "Ponzi / Investment Fraud",
+    "target": "Investors",
+    "tactics": ["Guaranteed Returns", "Fake Group", "Advance Fee"],
+    "education": [
+      "No legitimate scheme guarantees daily profit — that is the definition of a Ponzi scheme.",
+      "WhatsApp/Telegram 'trading groups' run by anonymous admins are investment scams.",
+      "Report to SEB Pakistan's complaint cell and FIA before sending any money."
+    ],
+    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: WhatsApp/Telegram Investment Fraud\n\nI was added to a messaging group promising guaranteed daily returns on investment, a hallmark of Ponzi fraud.\n\nLaw: PECA 2016, Section 9"
+  },
+  {
+    "type": "WhatsApp Cloned Voice Scam",
+    "keywords": ["meri awaz", "voice", "audio message", "beta", "bachi", "loan", "udhaar", "paise bhej", "emergency"],
+    "anchors": ["meri awaz", "paise bhej", "udhaar"],
+    "min_match": 3,
+    "confidence": 89,
+    "peca": "PECA 2016 — Section 14",
+    "attack": "AI Voice Cloning",
+    "target": "Parents & Families",
+    "tactics": ["AI Impersonation", "Emotional Manipulation", "Urgency"],
+    "education": [
+      "Scammers now clone voices from a few seconds of WhatsApp audio — a 'voice message' is NOT proof of identity.",
+      "If a family member asks for money on WhatsApp, call their known phone number and ask something only they would know.",
+      "Do not reply to the audio; verify through a different channel."
+    ],
+    "complaint": "TO: FIA Cyber Crime Wing\nSUBJECT: AI Voice-Cloning Fraud on WhatsApp\n\nA fraudster used a cloned voice audio message impersonating my family member to demand money.\n\nLaw: PECA 2016, Section 14"
   }
 ]

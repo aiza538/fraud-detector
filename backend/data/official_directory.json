@@ -1,0 +1,189 @@
+{
+  "_about": "Verified official Pakistani bank/telco/authority helplines. Ye 'legitimate whitelist' hai — security-critical: galat number 'verified official' label dekar victim ko scammer par bharosa karwa dega, aur asli bank ka number 'suspicious' kehla kar uski helpline block kar dega.",
+  "_provenance": "Har number entity ki APNI official website se liya gaya hai (source_url). Entries sirf tab add karein jab aap khud us page par number dekh chuke hon. Automated scraper (_verify_numbers.py) bohat se sites par 403/DNS fail hota hai — is liye har number manually verify karna zaroori hai.",
+  "_verified_on": "2026-10-09",
+  "_how_to_add": "Naya number: (1) entity ki official site ka contact page kholein, (2) number + surrounding context dekh kar confirm karein, (3) source_url wo exact page likhein, (4) entity ki list me number add karein. Short codes (111/777/310 jaise 3-4 digit) is list me JAAN BOOJH kar nahi daale — wo VoIP se asani se spoof ho jate hain.",
+  "entities": {
+    "HBL": {
+      "source_url": "https://www.hbl.com/contact-us",
+      "verified_on": "2026-10-09",
+      "note": "General 111-111-425. Baqi product-specific helplines bhi official hain.",
+      "numbers": [
+        "111-111-425",
+        "111-666-425",
+        "111-444-425",
+        "111-555-425",
+        "111-425-111",
+        "111-777-425",
+        "111-000-425"
+      ]
+    },
+    "UBL": {
+      "source_url": "https://www.ubldigital.com/About-UBL/Speak-to-UBL/Terms-and-Conditions",
+      "verified_on": "2026-10-09",
+      "note": "021-111-825-888",
+      "numbers": ["111-825-888"]
+    },
+    "NBP": {
+      "source_url": "https://www.nbp.com.pk/helpline",
+      "verified_on": "2026-10-09",
+      "note": "(+92-021) 111-627-627 = 111-NBP-NBP",
+      "numbers": ["111-627-627"]
+    },
+    "Bank Alfalah": {
+      "source_url": "https://www.bankalfalah.com/islamic-banking/self-service-banking/contact-centre",
+      "verified_on": "2026-10-09",
+      "note": "Bank Alfalah 021/042 111 225 111. Baqi product lines (Premier/Alfa/Authorization) bhi usi page par hain.",
+      "numbers": [
+        "111-225-111",
+        "111-225-226",
+        "111-225-224",
+        "111-225-229",
+        "111-225-786"
+      ]
+    },
+    "Meezan Bank": {
+      "source_url": "https://www.meezanbank.com/contact-us",
+      "verified_on": "2026-10-09",
+      "note": "24/7 Call Centre: 111-331-331 & 111-331-332",
+      "numbers": ["111-331-331", "111-331-332"]
+    },
+    "Soneri Bank": {
+      "source_url": "https://soneribank.com/contact",
+      "verified_on": "2026-10-09",
+      "note": "021 111-766-374 (111-SONERI). 111-567-890 company secretariat UAN hai, customer helpline nahi.",
+      "numbers": ["111-766-374"]
+    },
+    "BankIslami": {
+      "source_url": "https://bankislami.com.pk/customer-care",
+      "verified_on": "2026-10-09",
+      "note": "111-ISLAMI = 111-475-264",
+      "numbers": ["111-475-264"]
+    },
+    "Jazz": {
+      "source_url": "https://www.jazz.com.pk/help/contact-us",
+      "verified_on": "2026-10-09",
+      "note": "021-111 300 300. Jazz ka '111' (prepaid) aur '777' (postpaid) 3-digit short codes hain — jaan boojh kar nahi daale, VoIP se spoof ho sakte hain.",
+      "numbers": ["111-300-300"]
+    },
+    "State Bank of Pakistan": {
+      "source_url": "https://www.sbp.org.pk/contact-us",
+      "verified_on": "2026-10-09",
+      "note": "+92-21-111-727-111",
+      "numbers": ["111-727-111"]
+    },
+    "NAB": {
+      "source_url": "https://www.nab.gov.pk/",
+      "verified_on": "2026-10-09",
+      "note": "UAN 111-622-622 (site header par).",
+      "numbers": ["111-622-622"]
+    },
+    "PTA": {
+      "source_url": "https://www.pta.gov.pk/category/advertisement-all-unregistered-virtual-private-networks-vpns-to-be-blocked-378210409-2023-06-01",
+      "verified_on": "2026-10-09",
+      "note": "Toll-free helpline 0800-55055; complaint@pta.gov.pk",
+      "numbers": ["0800-55055"]
+    },
+    "BISP": {
+      "source_url": "https://bisp.gov.pk/",
+      "verified_on": "2026-10-09",
+      "note": "Toll-free 0800-26477",
+      "numbers": ["0800-26477"]
+    },
+    "NADRA": {
+      "source_url": "https://www.nadra.gov.pk/",
+      "verified_on": "2026-10-09",
+      "note": "1700 (short code), 111-786-100 helpline. NOTE: nadra.gov.pk scraper/webfetch ko 403 deta hai — ye manually verify kiye gaye hain, dobara check kar lein.",
+      "numbers": ["1700", "111-786-100"],
+      "needs_recheck": true
+    },
+    "FIA": {
+      "source_url": "https://www.fia.gov.pk/",
+      "verified_on": "2026-10-09",
+      "note": "1717 (short code), 1991 = Cyber Crime Wing helpline (Mon–Fri 8am–4pm).",
+      "numbers": ["1717", "1991"],
+      "needs_recheck": true
+    },
+    "FBR": {
+      "source_url": "https://www.fbr.gov.pk/",
+      "verified_on": "2026-10-09",
+      "note": "111-772-772",
+      "numbers": ["111-772-772"],
+      "needs_recheck": true
+    },
+    "Banking Mohtasib (BMP)": {
+      "source_url": "https://www.bankingmohtasib.gov.pk/",
+      "verified_on": "2026-10-09",
+      "note": "Bank ka faisla pasand na aaye to yahan shikayat hoti hai. SBP ka apna Sunwai portal bhi hai: https://sunwai.sbp.org.pk/ aur complaint.sbp.org.pk.",
+      "numbers": ["111-727-273"],
+      "needs_recheck": true
+    },
+    "Zong": {
+      "source_url": "https://www.zong.com.pk/contact-us",
+      "verified_on": null,
+      "note": "Purane code se 111-222-111. Aaj official site se verify nahi ho paya (DNS fail).",
+      "numbers": ["111-222-111"],
+      "needs_recheck": true
+    },
+    "MCB": {
+      "source_url": "https://www.mcb.com.pk/customer-services",
+      "verified_on": null,
+      "note": "Purane code se 111-000-622. Aaj official site se verify nahi ho paya.",
+      "numbers": ["111-000-622"],
+      "needs_recheck": true
+    },
+    "Allied Bank": {
+      "source_url": "https://www.abl.com/",
+      "verified_on": null,
+      "note": "Purane code se 111-225-225 (allied contact centre). Aaj verify nahi ho paya.",
+      "numbers": ["111-225-225"],
+      "needs_recheck": true
+    },
+    "Bank of the Punjab": {
+      "source_url": "https://bop.com.pk/",
+      "verified_on": null,
+      "note": "Purane code se 111-200-100. bop.com.pk pe scraper block tha, manual verify bhi pending tha.",
+      "numbers": ["111-200-100"],
+      "needs_recheck": true
+    },
+    "Standard Chartered": {
+      "source_url": "https://www.sc.com/pk/contact-us/",
+      "verified_on": null,
+      "note": "Purane code se 111-002-002 (general) + 111-722-724 (business banking).",
+      "numbers": ["111-002-002", "111-722-724"],
+      "needs_recheck": true
+    },
+    "JazzCash": {
+      "source_url": "https://www.jazzcash.com.pk/contact-us",
+      "verified_on": null,
+      "note": "Purane code se 111-124-444.",
+      "numbers": ["111-124-444"],
+      "needs_recheck": true
+    },
+    "Easypaisa": {
+      "source_url": "https://www.easypaisa.com.pk/contact-us",
+      "verified_on": null,
+      "note": "Purane code se 111-003-737.",
+      "numbers": ["111-003-737"],
+      "needs_recheck": true
+    }
+  },
+  "_still_to_verify": {
+    "_comment": "In entities ke koi verified number abhi nahi hai — purane code me bhi nahi the, sirf scraper targets the. Inhe add karne se pehle official site se number verify karein.",
+    "entities": [
+      "Summit Bank",
+      "Faysal Bank",
+      "Dubai Islamic Bank PK",
+      "Habib Metro Bank",
+      "Askari Bank",
+      "First Women Bank",
+      "KARO Bank",
+      "Sindh Bank",
+      "Bank of Khyber",
+      "SadaPay",
+      "Finja",
+      "Pakistan Post",
+      "SECP"
+    ]
+  }
+}

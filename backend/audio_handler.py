@@ -22,17 +22,8 @@ def analyze_audio(file_path: str):
         if transcript.status == aai.TranscriptStatus.error:
             print(f"❌ AssemblyAI Error: {transcript.error}")
             return {
-                "fraud": False,
-                "type": "Transcription Error",
-                "confidence": 0,
-                "peca": "N/A",
-                "attack": "None",
-                "target": "N/A",
-                "language": "Unknown",
-                "tactics": [],
-                "education": [f"Audio could not be transcribed: {transcript.error}"],
-                "complaint": None,
-                "transcript": None
+                "error": f"Audio could not be transcribed: {transcript.error}",
+                "_source": "Transcription_Error",
             }
 
         transcribed_text = transcript.text
@@ -40,10 +31,8 @@ def analyze_audio(file_path: str):
         
         if not transcribed_text or len(transcribed_text.strip()) < 2:
             return {
-                "fraud": False,
-                "type": "Silent/Unclear Audio",
-                "education": ["We could not hear any clear speech in the audio."],
-                # ... (fill in other defaults)
+                "error": "No clear speech detected in the audio, so it could not be analyzed.",
+                "_source": "Silent_Audio",
             }
 
         # Pass the text to our existing fraud detector
@@ -54,8 +43,6 @@ def analyze_audio(file_path: str):
     except Exception as e:
         print(f"Backend Audio Exception: {e}")
         return {
-                "fraud": False,
-                "type": "Processing Error",
-                "education": [f"Server error while processing audio: {e}"]
-                # ...
+            "error": f"Server error while processing audio: {str(e)[:120]}",
+            "_source": "Audio_Error",
         }

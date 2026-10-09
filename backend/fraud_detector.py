@@ -14,7 +14,7 @@ if not GEMINI_KEY:
 
 client = genai.Client(api_key=GEMINI_KEY)
 
-def analyze_text(text: str):
+def analyze_text(text: str, channel: str = None):
 
     logging.info("[🔍 FraudGuard Backend] Received a text analysis request")
     # ✅ TRUNCATE MASSIVE FILES: Protect your 250k token quota!
@@ -30,9 +30,13 @@ def analyze_text(text: str):
         pattern_result["_source"] = "Rule_Engine" 
         return pattern_result
 
+    channel_context = ""
+    if channel == "whatsapp":
+        channel_context = "\nThe message below was copied from a WhatsApp chat (could be a direct message, group chat, or a forwarded chain message).\n"
+
     # Layer 2 - Gemini (API needed)
     prompt = f"""
-You are a Pakistani cybercrime expert. Analyze this message for fraud.
+You are a Pakistani cybercrime expert. Analyze this message for fraud.{channel_context}
 Message: "{text}"
 
 Reply ONLY with this exact JSON, no extra text, no markdown:
@@ -92,34 +96,21 @@ Reply ONLY with this exact JSON, no extra text, no markdown:
             return result
 
         except json.JSONDecodeError:
-            return get_safe_fallback("AI could not format the result, but it seems safe.", source=f"Error_JSON_{model_name}")
-            
-        except Exception as e:
-            error_msg = str(e)
-            # If we hit a quota error, print a warning and let the loop try the next model
-            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-                print(f"⚠️ Quota hit for {model_name}, switching to next model...")
-                continue 
-            
-            # For any other random API error, fallback safely
-            print(f"Backend Exception Caught: {e}")
-            return get_safe_fallback(f"Analysis failed ({str(e)[:20]}). Assuming safe.", source="Error_Catch")
-            
-    # If the loop finishes and ALL models in the list were exhausted
-    return get_safe_fallback("All AI models are currently busy (Quota Exceeded). Please try again in 1 minute.", source="All_Quotas_Exhausted")
+            print(f"[warn] {model_name} returned unparseable JSON, trying next model...")
+            continue
 
-def get_safe_fallback(msg, source="Fallback"):
+        except Exception as e:
+            # 429/503/500/404 sab transient ya model-level issues hain — agla model try karo,
+            # yahin "safe" return karna galat assurance dega
+            print(f"[warn] {model_name} failed: {str(e)[:120]} -- trying next model...")
+            continue
+
+    # Saare models fail ho gaye. Rule engine ne fraud nahi pakda, is liye AI
+    # layer ke jaate hi "safe" kehna victim ko risk mein daal deta hai.
+    return get_ai_error_response()
+
+def get_ai_error_response():
     return {
-        "fraud": False,
-        "type": "Safe / Error",
-        "confidence": 0,
-        "peca": "No violation",
-        "attack": "None",
-        "target": "Unknown",
-        "language": "Unknown",
-        "tactics": [],
-        "education": [msg],
-        "complaint": None,
-        "transcript": None,
-        "_source": source 
+        "error": "AI analysis is unavailable right now (all models failed or are busy). This message did NOT match any known scam pattern, but that does not mean it is safe — please try again in a minute.",
+        "_source": "AI_Unavailable",
     }
