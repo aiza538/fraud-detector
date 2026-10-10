@@ -4,8 +4,10 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const TABS = [
   { id: "text", label: "Paste Text", icon: "💬" },
+  { id: "whatsapp", label: "WhatsApp", icon: "📱" },
   { id: "file", label: "Upload File", icon: "📄" },
   { id: "audio", label: "Upload Audio", icon: "🎤" },
+  { id: "number", label: "Check Number", icon: "📞" },
 ];
 
 export default function TabBar({ activeTab, onChange }) {

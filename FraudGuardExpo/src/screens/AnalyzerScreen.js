@@ -2,25 +2,40 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  PermissionsAndroid,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 import ComplaintForm from "../components/ComplaintForm";
 import EducationPanel from "../components/EducationPanel";
 import FileUploader from "../components/FileUploader";
-import MessageInput from "../components/MessageInput";
+import MessageInput, { WHATSAPP_SAMPLES } from "../components/MessageInput";
+import NumberChecker from "../components/NumberChecker";
 import ResultCard from "../components/ResultCard";
 import TabBar from "../components/TabBar";
 import { analyzeAudio, analyzeText } from "../services/api";
 
 export default function AnalyzerScreen() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("text");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // Android 13+ pe fraud alerts dikhane ke liye notification permission zaroori
+  useEffect(() => {
+    if (Platform.OS === "android" && Platform.Version >= 33) {
+      PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+      );
+    }
+  }, []);
 
   useEffect(() => {
     if (toast) {
@@ -31,11 +46,11 @@ export default function AnalyzerScreen() {
 
   const showToast = (message, type = "info") => setToast({ message, type });
 
-  const handleAnalyze = async (text) => {
+  const handleAnalyze = async (text, channel) => {
     setLoading(true);
     setResult(null);
     try {
-      const data = await analyzeText(text);
+      const data = await analyzeText(text, channel);
       if (data.error) {
         showToast(data.error, "error");
         return;
@@ -97,6 +112,11 @@ export default function AnalyzerScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.bellButton}
+            onPress={() => router.push("/notifications")}>
+            <Text style={styles.bellEmoji}>🔔</Text>
+          </TouchableOpacity>
           <View style={styles.iconBadge}>
             <Text style={styles.iconEmoji}>🛡️</Text>
           </View>
@@ -116,6 +136,18 @@ export default function AnalyzerScreen() {
         {activeTab === "text" && (
           <MessageInput onAnalyze={handleAnalyze} loading={loading} />
         )}
+        {activeTab === "whatsapp" && (
+          <MessageInput
+            onAnalyze={(text) => handleAnalyze(text, "whatsapp")}
+            loading={loading}
+            title="WhatsApp Chat Check"
+            subtitle="Chat ka text select → copy → yahan paste karein"
+            placeholder={
+              'Paste WhatsApp message / chat here...\n\nCommon scams: "account 24 hour mein band", verification code mangna, daily profit trading group, dost ki emergency'
+            }
+            samples={WHATSAPP_SAMPLES}
+          />
+        )}
         {activeTab === "file" && (
           <FileUploader
             onFileAnalyze={handleFileAnalyze}
@@ -130,6 +162,9 @@ export default function AnalyzerScreen() {
             type="audio"
           />
         )}
+        {activeTab === "number" && (
+          <NumberChecker onToast={showToast} />
+        )}
 
         {loading && (
           <View style={styles.loadingBox}>
@@ -142,13 +177,18 @@ export default function AnalyzerScreen() {
           </View>
         )}
 
-        {result && !loading && (
-          <>
-            <ResultCard result={result} />
-            <EducationPanel items={result.education} />
-            {result.complaint && <ComplaintForm text={result.complaint} />}
-          </>
-        )}
+          {result && !loading && (
+            <>
+              <ResultCard result={result} />
+              <EducationPanel items={result.education} />
+              {result.complaint && (
+                <ComplaintForm
+                  text={result.complaint}
+                  channel={activeTab === "whatsapp" ? "WhatsApp" : activeTab === "audio" ? "Call/Audio" : "Text/File"}
+                />
+              )}
+            </>
+          )}
 
         {toast && (
           <View
@@ -174,6 +214,8 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#f0f9ff" },
   container: { padding: 20, paddingBottom: 40 },
   header: { alignItems: "center", marginBottom: 20 },
+  bellButton: { position: "absolute", right: 0, top: 0, padding: 8, zIndex: 10 },
+  bellEmoji: { fontSize: 22 },
   iconBadge: {
     backgroundColor: "#1d4ed8",
     padding: 14,
