@@ -1,0 +1,6 @@
+{
+  "_comment": "Admin-verified scam numbers. Pakistan ka koi PUBLIC official scam-number database nahi hai (PTA/FIA publish nahi karte) — is liye yahan sirf wo numbers aate hain jo FIA press release, court record, ya kisi government notice mein PUBLICLY named hue hon. Har entry mein 'source_url' + 'verified_on' ZAROORI hai taake number kisi bhi waqt dobara check kiya ja sake.",
+  "_how_to_add": "Naya number add karne se pehle: (1) FIA.gov.pk press release / court record / official notice dhundein, (2) source_url wo exact page ho, (3) verified_on aaj ki date (ISO), (4) category. Bina source_url ke entry add na karein — ye data 'authentic' claim karta hai.",
+  "_do_not": "Kisi ka apna guess, ya community report yahan na daalein. Community reports ke liye reported_numbers.json hai, jo automatically threshold par confirm hoti hai.",
+  "numbers": []
+}

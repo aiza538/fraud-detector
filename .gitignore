@@ -29,3 +29,10 @@ dist-ssr
 prompt.txt
 context.md
 backend/.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Local Android SDK (not part of the project)
+AndroidSdk/
