@@ -1,6 +1,5 @@
 // src/background.js
-const API_BASE = "http://localhost:5000"; // Change this to your deployed Render URL later
-
+const API_BASE = "https://l-law-liet-fraudguard-pk-backend.hf.space";
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "analyzeText") {
     fetch(`${API_BASE}/analyze/text`, {
