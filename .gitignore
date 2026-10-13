@@ -37,3 +37,5 @@ __pycache__/
 
 # Local Android SDK (not part of the project)
 AndroidSdk/
+# Local dev database (SQLite)
+backend/*.db

@@ -88,6 +88,19 @@ The backend operates as the central intelligence engine:
   - `/report-number`: Rate-limited community reporting requiring a threshold of 5 distinct hashed IP addresses and 180-day decay.
   - `/unreport-number`: Appeal/removal mechanism to unblock erroneously reported numbers.
   - `/number-lists`: Exports synced whitelists and spoofable variants to the mobile app for offline on-device screening.
+  - These unversioned routes are the **legacy API** (no token). They stay only until the mobile app moves to `/v1`.
+- **`api_v1.py`** — the token-protected `/v1` API (database-backed):
+  - `POST /v1/auth/anonymous`: The app calls this on first launch and receives its own token. No login screen.
+  - `POST /v1/auth/refresh`, `GET /v1/account`, `DELETE /v1/account`: Renew the token, read account state, delete the account and its data.
+  - `POST /v1/auth/email/start` and `/v1/auth/email/verify`: 6-digit email code (10-minute expiry, 5 attempts). Needed only to report a number.
+  - `POST /v1/analyze/text`, `POST /v1/analyze/audio`: Same analysis as before, with per-user and per-network daily limits.
+  - `POST /v1/check-number`, `GET /v1/number-lists`: Same screening rules as the legacy routes.
+  - `POST /v1/report-number`: Verified users only. A number is confirmed after 5 reports from different networks, by reporters who verified their email at least 48 hours earlier. Reports expire after 180 days.
+  - `POST /v1/admin/unreport-number`: Admins only (emails listed in `ADMIN_EMAILS`).
+- **`security.py`**: Token signing and checking, IP/email hashing, daily limits.
+- **`db.py`** and **`migrations/`**: Database tables (users, reports, usage counters, email codes) and Alembic migrations.
+- **`number_rules.py`**: The number-screening rules shared by the legacy and `/v1` routes.
+- **`config.py`**: All settings, read from environment variables. In production the server refuses to start without its secrets.
 - **`fraud_detector.py`**:
   - Truncates oversized chat logs to the last 15,000 characters to prevent token exhaustion.
   - Executes **Layer 1** (Rule engine). If matched, returns immediately without making API calls.
@@ -170,8 +183,8 @@ While the core scam detection logic is robust, several parts of the codebase rem
 3. **Hardcoded API URLs & Environment Configuration**:
    - `frontend/src/services/api.js` and `frontend/src/background.js` have hardcoded URLs pointing to Hugging Face Spaces (`https://l-law-liet-fraudguard-pk-backend.hf.space`) rather than using Vite environment variables (`import.meta.env.VITE_API_BASE_URL`).
    - `manifest.json` does not include `hf.space` in `host_permissions`, which can cause extension network errors if the extension is packed for production.
-4. **Flat JSON File Storage (No Real Database)**:
-   - Backend data (`reported_numbers.json`, `verified_scam_numbers.json`) is read and written directly to local JSON files on disk using Python locks. If hosted on serverless platforms, container restarts or multi-worker Gunicorn processes will overwrite or lose data.
+4. **Legacy Routes Still Use JSON File Storage**:
+   - The `/v1` API stores reports in a database. The legacy unversioned routes still write `reported_numbers.json` to local disk, which is lost on container restarts. They will be removed once the mobile app uses `/v1`.
 5. **Basic Chrome Extension DOM Handling**:
    - `frontend/src/content.js` relies on a generic `alert()` modal and a basic DOM selector (`span[dir="ltr"]`). It does not highlight suspicious chat bubbles directly on WhatsApp Web.
 6. **Audio Transcription Language Nuance**:
@@ -226,6 +239,30 @@ PORT=5000
 Run the server:
 ```bash
 python main.py
+```
+Locally nothing else is needed: the `/v1` API uses a SQLite file (`backend/fraudguard-dev.db`) and email codes are printed in the server log.
+
+Run the tests (from `backend/`):
+```bash
+python -m tests.test_pattern_matcher
+python -m tests.test_number_screening
+python -m tests.test_group_messages
+python -m unittest tests.test_detection_accuracy tests.test_api_v1
+```
+
+**Production settings** (Hugging Face Space secrets). The server will not start without the first three:
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Neon Postgres **pooled** connection string |
+| `JWT_SECRET` | Random string, 32+ characters. Signs user tokens |
+| `FRAUDGUARD_SALT` | Random string, 32+ characters. Hashes IPs and emails |
+| `ADMIN_EMAILS` | Comma-separated emails of admins |
+| `TRUSTED_PROXY_HOPS` | Number of proxies in front of the server (default `1` in production) |
+
+Create or update the database tables before starting a new version:
+```bash
+alembic upgrade head
 ```
 
 ### 2. Frontend (Web App & Chrome Extension)

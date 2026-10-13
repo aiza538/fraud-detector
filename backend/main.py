@@ -1,115 +1,46 @@
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-# from fraud_detector import analyze_text
-# from audio_handler import analyze_audio
-# import os
-
-# app = Flask(__name__)
-
-# # ✅ More explicit CORS config
-# CORS(app, resources={r"/*": {"origins": "*"}})
-
-# UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
-# os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-# @app.route("/")
-# def home():
-#     return jsonify({"status": "Fraud Detector API is running"})
-
-# @app.route("/analyze/text", methods=["POST", "OPTIONS"])
-# def analyze_text_route():
-#     if request.method == "OPTIONS":
-#         return jsonify({}), 200          # ✅ handle preflight manually too
-
-#     data = request.get_json()
-
-#     if not data or "text" not in data:
-#         return jsonify({"error": "No text provided"}), 400
-
-#     text = data["text"].strip()
-#     if len(text) < 3:
-#         return jsonify({"error": "Text too short"}), 400
-
-#     try:
-#         result = analyze_text(text)
-#         return jsonify(result)
-#     except Exception as e:
-#         error_msg = str(e)
-#         # ✅ Give a clear message for quota errors
-#         if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-#             return jsonify({
-#                 "error": "Gemini quota exceeded. Wait a few minutes and try again, or test with a message that matches scam patterns (OTP, HBL, block) — those use the rule engine and don't need Gemini."
-#             }), 429
-#         return jsonify({"error": error_msg}), 500
-
-# @app.route("/analyze/audio", methods=["POST", "OPTIONS"])
-# def analyze_audio_route():
-#     if request.method == "OPTIONS":
-#         return jsonify({}), 200
-
-#     if "file" not in request.files:
-#         return jsonify({"error": "No audio file provided"}), 400
-
-#     file = request.files["file"]
-#     if file.filename == "":
-#         return jsonify({"error": "Empty filename"}), 400
-
-#     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-#     file.save(file_path)
-
-#     try:
-#         result = analyze_audio(file_path)
-#         return jsonify(result)
-#     except Exception as e:
-#         error_msg = str(e)
-#         if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-#             return jsonify({"error": "Gemini quota exceeded. Try again in a few minutes."}), 429
-#         return jsonify({"error": error_msg}), 500
-#     finally:
-#         if os.path.exists(file_path):
-#             os.remove(file_path)
-
-
-# # main.py mein yeh route add karo — sirf testing ke liye
-# @app.route("/test-keys")
-# def test_keys():
-#     gemini_key = os.getenv("GEMINI_API_KEY")
-#     assembly_key = os.getenv("ASSEMBLYAI_API_KEY")
-#     return jsonify({
-#         "gemini_loaded": gemini_key is not None,
-#         "gemini_preview": gemini_key[:12] + "..." if gemini_key else "MISSING",
-#         "assemblyai_loaded": assembly_key is not None,
-#         "assemblyai_preview": assembly_key[:12] + "..." if assembly_key else "MISSING"
-#     })
-
-# if __name__ == "__main__":
-#     app.run(debug=True, port=5000)
-
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 from fraud_detector import analyze_text
 from audio_handler import analyze_audio
 import os
 import json
-import re
 import time
 import logging
 import threading
 import hashlib
 
+import config
+import db
+from api_v1 import v1
+from config import REPORT_THRESHOLD, REPORT_DECAY_DAYS
+from number_rules import (
+    _load_json, VERIFIED_SCAM_NUMBERS, clean_number, lookup_keys,
+    LEGITIMATE_LOOKUP, ALL_LEGITIMATE, find_spoof_target, _near_variants,
+    _plausible_caller_number,
+)
+# tests/test_detection_accuracy.py inhe `main` se import karta hai.
+from number_rules import AREA_CODES, _levenshtein, load_official_directory  # noqa: F401
+
 app = Flask(__name__)
+
+# Proxy (Hugging Face / Render) ke peeche `remote_addr` proxy ka IP hota hai —
+# sab users ek hi IP lagte the aur IP limits/consensus bekaar ho jate the.
+if config.TRUSTED_PROXY_HOPS:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=config.TRUSTED_PROXY_HOPS)
+
+# /v1 API: token-protected, database-backed. Neeche ke purane routes tab tak
+# hain jab tak mobile app /v1 par shift nahi hoti.
+db.init_engine(config.DATABASE_URL)
+if not config.IS_PRODUCTION:
+    # Production me schema sirf `alembic upgrade head` se banta hai.
+    db.Base.metadata.create_all(db.engine)
+app.teardown_appcontext(db.close_session)
+app.register_blueprint(v1)
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
-def _load_json(path, fallback):
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, fallback.__class__) else fallback
-    except (FileNotFoundError, json.JSONDecodeError):
-        return fallback
 
 def _save_json(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -173,63 +104,6 @@ def handle_audio():
 
     return jsonify(result)
 
-# Verified legitimate Pakistani bank/telco/authority numbers (entity -> UANs).
-#
-# DATA AB `data/official_directory.json` MEIN HAI — har number ke saath
-# `source_url` + `verified_on`, taake koi bhi waqt dobara check kar sake ke
-# number aaj bhi us organisation ka official number hai ya nahi. Ye whitelist
-# SECURITY-CRITICAL hai:
-#   - galat number "verified official" label dekar victim ko scammer par
-#     bharosa karwa dega
-#   - missing number asli bank ki helpline ko "suspicious" bana dega
-# Is liye naya number add karna = official site par number dekh kar usi page
-# ka URL likhna. Guess kabhi nahi.
-#
-# Short codes (telcos ke 310/345/333/355/1218/3737/4444) yahan JAAN BOOJH kar
-# nahi daale: 3-4 digit codes VoIP se asani se spoof ho jate hain, aur telcos
-# customer ko call karne ke bajaye SMS bhejte hain.
-OFFICIAL_DIRECTORY_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "data", "official_directory.json")
-
-def load_official_directory(region: str = None, filepath: str = None):
-    """Loads official directory with root region key filtering ('PK', 'GLOBAL', 'AE', 'UK').
-    
-    If region is provided, filters entities to that specific region.
-    If region is None, loads entities across all regions.
-    """
-    path = filepath or OFFICIAL_DIRECTORY_FILE
-    doc = _load_json(path, {})
-    # Multi-region schema support (PK, GLOBAL, AE, UK) with backward-compatible fallback
-    if isinstance(doc, dict) and "regions" in doc:
-        out = {}
-        for region_code, reg_info in doc["regions"].items():
-            if region and region_code.upper() != str(region).strip().upper():
-                continue
-            reg_entities = reg_info.get("entities", reg_info) if isinstance(reg_info, dict) else {}
-            for entity, meta in reg_entities.items():
-                if isinstance(meta, dict):
-                    numbers = meta.get("numbers") or []
-                    if numbers:
-                        out[entity] = numbers
-        if out:
-            return out
-    entities = doc.get("entities", {}) if isinstance(doc, dict) else {}
-    out = {}
-    for entity, meta in entities.items():
-        numbers = meta.get("numbers") or []
-        if numbers:
-            out[entity] = numbers
-    return out
-
-_load_official_directory = load_official_directory
-LEGITIMATE_DIRECTORY = _load_official_directory()
-if not LEGITIMATE_DIRECTORY:
-    # JSON missing/corrupt ho to app chup na ho — magar ye fail loudly karein,
-    # kyunki khali whitelist = har bank ka number "suspicious" ban jayega.
-    raise RuntimeError(
-        f"official_directory.json load nahi hui ({OFFICIAL_DIRECTORY_FILE}). "
-        "Verified whitelist missing hai — scam screening unreliable ho jayegi."
-    )
 
 # --- Community-reported scam numbers: CONSENSUS database --------------------
 #
@@ -252,14 +126,6 @@ if not LEGITIMATE_DIRECTORY:
 #   - Number owner / admin `unreport-number` se claim kar sakta hai.
 REPORTED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "reported_numbers.json")
 
-# Kitne ALAG reporters ke number ko scam kehna hai. 1 bahut kam hai — ek
-# galti se galti se number ban jata tha.
-REPORT_THRESHOLD = 5
-# Report ki age (din) — is se zyada purane reports count nahi hote.
-REPORT_DECAY_DAYS = 180
-# Admin ke liye: manually verify kiye gaye (FIA press release / court record)
-# numbers. Inka threshold nahi lagta — inhe seedha scam maana jaata hai.
-VERIFIED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "verified_scam_numbers.json")
 
 # Reporter ki identity store karne ke liye IP ka raw value nahi, uska hash —
 # warna DB mein users ke IP addresses accumulate honge. Salt app-wide hai taake
@@ -305,24 +171,6 @@ def _save_reported(numbers):
 
 REPORTED_SCAM_NUMBERS = _load_reported()
 
-def _load_verified():
-    """verified_scam_numbers.json ka `numbers` array — har entry dict ya string.
-
-    File ke top par `_comment`/`_how_to_add` jaise documentation keys hain, is liye
-    sirf `numbers` key hi padhi jaati hai. Bina source_url ke entry ignore hoti
-    hai: "authentic" ka dawa tabhi qeemti hai jab source traceable ho.
-    """
-    doc = _load_json(VERIFIED_FILE, {})
-    entries = doc.get("numbers", []) if isinstance(doc, dict) else doc
-    out = []
-    for e in entries:
-        if isinstance(e, str):
-            out.append({"number": e, "source": "admin_verified", "source_url": None})
-        elif isinstance(e, dict) and e.get("number") and e.get("source_url"):
-            out.append(e)
-    return out
-
-VERIFIED_SCAM_NUMBERS = _load_verified()
 
 def _active_reports(entry):
     """Decay ke baad bache reports — distinct reporters, ek per reporter."""
@@ -360,96 +208,6 @@ def _rate_limited(ip):
         _report_counts[ip] = hits
         return False
 
-def clean_number(raw):
-    # Spaces, dashes, brackets, +92 hatao for comparison
-    cleaned = raw.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-    if cleaned.startswith("+92"):
-        cleaned = cleaned[3:]
-    elif cleaned.startswith("0092"):
-        cleaned = cleaned[4:]
-    # Sirf EK leading zero hatao. lstrip("0") poora zero-strip kar deta tha,
-    # jis se "0800-55055" (PTA) aur "0800-26477" (BISP) jaise short UANs
-    # galat normalize ho jate the.
-    if cleaned.startswith("0"):
-        cleaned = cleaned[1:]
-    return cleaned
-
-# Pakistani landline area codes. Banks apni official sites par helpline
-# "021-111-xxx-xxx" format mein likhte hain aur network caller ID bhi prefixed
-# hi bhejta hai — bare "111xxx xxx" se wo match nahi karta tha.
-AREA_CODES = {"21", "42", "51", "61", "71", "81", "91"}
-
-def lookup_keys(cleaned):
-    keys = [cleaned]
-    # 0<area><UAN> / +92<area><UAN> -> bare UAN  (21111627627 -> 111627627)
-    if len(cleaned) == 11 and cleaned[:2] in AREA_CODES and cleaned[2:].startswith("111"):
-        keys.append(cleaned[2:])
-    return keys
-
-# cleaned number -> entity (Caller ID lookup)
-LEGITIMATE_LOOKUP = {
-    clean_number(n): entity
-    for entity, numbers in LEGITIMATE_DIRECTORY.items()
-    for n in numbers
-}
-
-# Area-code prefixed roop (021-111-xxx-xxx) bhi official hain — inhe alag rakha hai
-# taake spoof-check sirf canonical UAN se ho. Warna 042-111-... (doosre sheher ka
-# same bank UAN) 021-111-... se edit-distance 2 par "spoof" ghoshit ho jata.
-LEGITIMATE_ALIASES = {
-    area + number: entity
-    for number, entity in LEGITIMATE_LOOKUP.items()
-    if len(number) == 9 and number.startswith("111")
-    for area in sorted(AREA_CODES)
-}
-
-# Direct "ye official number hai" matching — canonical + prefixed
-ALL_LEGITIMATE = {**LEGITIMATE_ALIASES, **LEGITIMATE_LOOKUP}
-
-def _levenshtein(a, b):
-    if abs(len(a) - len(b)) > 2:
-        return 99
-    prev = list(range(len(b) + 1))
-    for i, ca in enumerate(a, 1):
-        curr = [i]
-        for j, cb in enumerate(b, 1):
-            curr.append(min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + (ca != cb)))
-        prev = curr
-    return prev[-1]
-
-def find_spoof_target(cleaned):
-    # Kisi verified authority ka number jaisa dikhta ho lekin exact na ho — impersonation
-    if len(cleaned) < 7:
-        return None
-    for official, entity in LEGITIMATE_LOOKUP.items():
-        if len(cleaned) == len(official) and _levenshtein(cleaned, official) <= 2:
-            return entity
-    return None
-
-_DIGITS = "0123456789"
-
-def _near_variants(official, whitelist):
-    """Har verified UAN ke do-teen digit ke close neighbours.
-
-    Scammer ke paas apna number to hota hai — wo koi bhi *random* 9-digit
-    number nahi banata, balki verified UAN se 1-2 digit door ka number banata
-    hai (jaise 111-111-425 -> 111-111-427) kyunki wahi "official lagta" hai.
-    In sab par distance <= 2 hone se total candidates per UAN sirf ~55 hain,
-    is liye ye list mehengi nahi — native receiver inhe impersonation samajh
-    leta hai bina network ke.
-    """
-    n = len(official)
-    if n < 7:
-        return []
-    out = set()
-    for i in range(n):
-        prefix, suffix = official[:i], official[i + 1:]
-        original = official[i]
-        for d in _DIGITS:
-            if d == original:
-                continue
-            out.add(prefix + d + suffix)
-    return [v for v in out if v not in whitelist]
 
 @app.route('/check-number', methods=['POST'])
 def check_number():
@@ -564,11 +322,6 @@ def check_number():
     })
 
 
-# Number kya Pakistani caller number ya corporate UAN lag sakta hai? Ye sirf
-# /report-number ki sanity check ke liye hai, taake koi bhi random string
-# blacklist na kar sake.
-def _plausible_caller_number(cleaned):
-    return bool(re.fullmatch(r"\d{7,13}", cleaned))
 
 
 @app.route('/report-number', methods=['POST'])
