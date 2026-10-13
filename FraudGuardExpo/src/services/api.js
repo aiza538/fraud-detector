@@ -1,5 +1,6 @@
 // src/services/api.js
 import { Platform } from "react-native";
+import { File, Paths } from "expo-file-system";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL;
 
@@ -51,11 +52,18 @@ export async function checkNumber(number, isSavedContact = false) {
   return response.json();
 }
 
+/**
+ * Community report.
+ *
+ * `reporter` = stable device id. Backend "5 alag users" ka consensus ginta
+ * hai — iske baghair aik hi banda button 5 baar tap kar ke kisi innocent
+ * number ko block kar sakta tha.
+ */
 export async function reportNumber(number, note) {
   const response = await fetch(`${API_BASE}/report-number`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ number, note }),
+    body: JSON.stringify({ number, note, reporter: getDeviceId() }),
   });
   // Backend verified number par report reject karta hai (400) — UI ko error
   // message dikhani hai, is liye status check zaroori hai.
@@ -65,6 +73,37 @@ export async function reportNumber(number, note) {
   }
   // { status: "pending" | "confirmed", report_count, reports_needed, message }
   return response.json();
+}
+
+// Device id — ek hi install ke liye stable. Random + timestamp se banti hai
+// aur ek JSON file me cached rehti hai (AsyncStorage install nahi hai).
+let cachedDeviceId = null;
+
+function getDeviceId() {
+  if (cachedDeviceId) return cachedDeviceId;
+  try {
+    const file = new File(Paths.document, "device-id.json");
+    if (file.exists) {
+      const parsed = JSON.parse(file.textSync() || "{}");
+      if (parsed.id) {
+        cachedDeviceId = parsed.id;
+        return cachedDeviceId;
+      }
+    }
+  } catch {
+    /* file corrupt / unreadable — naya id banao */
+  }
+  cachedDeviceId = `d-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+  try {
+    new File(Paths.document, "device-id.json").write(
+      JSON.stringify({ id: cachedDeviceId }),
+    );
+  } catch {
+    /* write fail — in-memory id se chalega, app lifetime tak same rahega */
+  }
+  return cachedDeviceId;
 }
 
 /**

@@ -24,12 +24,17 @@ const CALL_MESSAGES = {
 
 // Unknown number = "pata nahi", scam nahi. Is par koi alert history entry
 // nahi banti — warna har personal number app ka notification ban jata tha.
+//
+// "cooldown" native dedupe ka signal hai: same number par 12 ghante ke andar
+// dobara notification nahi bheji gayi. Ye bhi history me entry nahi banata,
+// warna ek hi scammer ki 5 calls par 5 duplicate rows.
 const ALERTED_LEVELS = new Set(["scam", "suspicious"]);
 
 export async function syncRules() {
   if (!isCallGuardAvailable()) return;
   try {
     const data = await getNumberLists();
+    if (!data || typeof data !== "object") return;
     await setNativeRules(
       data.legitimate ?? [],
       data.scam ?? [],
@@ -39,10 +44,17 @@ export async function syncRules() {
     // online aur offline ka jawab ek jaisa ho.
     updateCallerDirectory(data);
   } catch {
-    // Backend offline — purane cached rules hi chalte rahenge.
-    // NOTE: pehle yahan rules stale rehne par bhi app UNKNOWN numbers ko
-    // "suspicious" bana deta tha. Ab unknown pe koi alert nahi hota, is liye
-    // stale rules se sirf verified banks ka naam hi stale reh sakta hai.
+    // Backend offline / route missing — native rules cached (ya bundled
+    // fallback) hi chalte rahenge.
+    //
+    // ✅ Ye silent-fail pehle ASLI problem thi: `/number-lists` backend me
+    // MISSING tha → sync hamesha fail → native legit list KHAALI → HBL
+    // 111-111-425 jaise real helpline numbers bhi "unknown 111 UAN" par
+    // SUSPICIOUS aa jate thay. Ab: (a) backend route exist karta hai,
+    // (b) native `NumberRules` VERIFIED_DIRECTORY ka union use karta hai,
+    // (c) JS `CallerIDService` me bhi OFFLINE_FALLBACK merge hota hai —
+    // teenon layers par legit helpline KABHI unknown nahi hogi.
+    updateCallerDirectory({ legitimate: [], directory: {}, scam: [], spoofable: [] });
   }
 }
 

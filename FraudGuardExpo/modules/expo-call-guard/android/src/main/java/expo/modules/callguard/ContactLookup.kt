@@ -112,19 +112,16 @@ object ContactLookup {
         return true
     }
 
-    /**
+/**
      * Number ko 10-digit suffix tak normalize karo taake 0300…/+92 300…/92300…
      * sab match hon, phir exact set membership dekho.
+     *
+     * Ye `NumberRules.clean()` se MATCH karna zaroori hai — phonebook me
+     * number "051-111-111-425" store hota hai jabke incoming call aisi hi
+     * shape me aati hai. Agar dono normalize alag-alag karein to saved
+     * bank helpline "not saved" samajh aa jati thi.
      */
-    private fun normalize(raw: String): String {
-        var c = raw.replace(" ", "").replace("-", "")
-            .replace("(", "").replace(")", "").replace("\u00A0", "")
-        if (c.startsWith("+92")) c = c.substring(3)
-        else if (c.startsWith("0092")) c = c.substring(4)
-        if (c.startsWith("0")) c = c.substring(1)
-        if (c.length > 10) c = c.takeLast(10)
-        return c
-    }
+    private fun normalize(raw: String): String = NumberRules.clean(raw)
 
     fun lookupNumber(context: Context, rawNumber: String?): Result {
         val cleaned = normalize(rawNumber.orEmpty())

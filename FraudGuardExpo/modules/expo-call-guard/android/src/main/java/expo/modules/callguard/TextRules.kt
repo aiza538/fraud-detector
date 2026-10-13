@@ -258,13 +258,38 @@ object TextRules {
         return Regex("(^|[^a-z0-9])${Regex.escape(kw)}([^a-z0-9]|$)").containsMatchIn(haystack)
     }
 
-    fun match(text: String): String? {
+    /**
+     * Rule match karne ke liye kitne DISTINCT anchors chahiye.
+     *
+     * ✅ Groups/channels me 2 anchors, 1:1 chat me 1.
+     *
+     * Kyun: group me sender ki identity pata nahi hoti — aik hi member ek
+     * "doubling" ad bhej sakta hai jo 6 members ke replies ke saath poori
+     * notification body bhar deta hai. 1:1 me ek anchor kafi hai kyunke
+     * wahan message sirf us shakhs ka hota hai. Group me kamzor signal
+     * (jaise "beta" + "emergency") asli family chat par fire karta tha.
+     */
+    private fun requiredAnchors(strict: Boolean): Int = if (strict) 2 else 1
+
+    /**
+     * Anchor-gated keyword rule engine.
+     *
+     * `strict = true` (group / broadcast / Telegram channel):
+     *   - title scan me include NAHI hota (group ka naam "Daily Profit
+     *     Trading" hai to woh khud rule trigger kar deta tha)
+     *   - 2 anchors chahiye, sirf 1 nahi
+     *   - link analysis poori tarah skip
+     *
+     * `strict = false` (1:1 WhatsApp / SMS / Telegram DM): title + body,
+     *   1 anchor, link analysis chalti hai.
+     */
+    fun match(text: String, strict: Boolean = false): String? {
         val lower = text.lowercase()
+        val needAnchors = requiredAnchors(strict)
         for (rule in RULES) {
             val matched = rule.keywords.filter { containsKeyword(lower, it) }.toSet()
             if (matched.size < rule.minMatch) continue
-            // Anchor gate: kam-se-kam ek anchor bhi matched set me hona chahie.
-            if (rule.anchors.none { it in matched }) continue
+            if (rule.anchors.count { it in matched } < needAnchors) continue
             return rule.label
         }
         return null
@@ -292,8 +317,10 @@ object TextRules {
      * Unknown number se OTP maangna — sabse common attack. Do tier:
      *   Tier A: OTP + "bhej"/"share"/"maangein"          -> SCAM
      *   Tier B: OTP + "enter/verify" + link ya urgency  -> SUSPICIOUS
+     *
+     * `strict` me (group/channel) sirf Tier A hi alert karta hai.
      */
-    fun matchOtpHarvest(text: String): String? {
+    fun matchOtpHarvest(text: String, strict: Boolean = false): String? {
         val l = text.lowercase()
         if (mentionsDoNotShare(l)) return null
         if (!hasAnyWord(l, OTP_WORDS)) return null
@@ -301,6 +328,10 @@ object TextRules {
         if (hasAnyWord(l, GIVE_WORDS_SEND) || hasAnyWord(l, GIVE_WORDS_DEMAND)) {
             return "OTP harvesting attempt — unknown number OTP/code maang raha hai. Koi OTP kabhi kisi ke sath share NAHI karna, bank/authority kabhi OTP nahi maangta."
         }
+
+        // Tier B sirf 1:1 chat me. Group me "verify karein" + link aam
+        // banking/ecommerce message bhi ho sakta hai → amber alert noise.
+        if (strict) return null
 
         if (hasAnyWord(l, WEAK_ACTION_WORDS)) {
             val hasLink = URL_REGEX.containsMatchIn(l)
@@ -322,16 +353,21 @@ object TextRules {
      * WhatsApp group ke andar ka member. Bina iske saved logon ki normal baat
      * (family emergency, "paise bhej do") par alert aata tha.
      *
-     * `isGroup` true ho to LINK analysis poori tarah skip — sirf text-based scam
-     * (OTP mangna, prize/lottery, bank impersonation) par alert. Ye is liye
-     * zaroori hai ke WhatsApp group notification ka title GROUP KA NAAM hota
-     * hai, member ka number nahi — app ko pata hi nahi chalta ke link kisne
-     * bheja. Group mein job/course/training ke asli ads roz aate hain, aur
-     * `.top`/`.xyz`/`.link`/`.work` jaise naye TLD in par lagte hain — jis se
-     * har asli course ad "suspicious link" alert bana deta tha (test:
-     * careercourse.top, jobsapply.xyz, smmcourse.link, ccna-course.work — 4/4).
-     * Sender ki identity group me available hi nahi hoti, to link par faisla
-     * lagana galat verdict hai, chahe signal kitna bhi strong ho.
+     * `isGroup` / `isChannel` true ho to STRICT mode: title scan nahi hota,
+     * 2 anchors chahiye (1:1 me 1), link analysis poori tarah skip, aur OTP
+     * ka sirf Tier A (pakka scam) alert karta hai — Tier B nahi.
+     *
+     * Ye is liye zaroori hai ke group/broadcast-channel notification ka title
+     * SENDER ka nahi hota — wo group/channel ka NAAM hota hai ("Daily Profit
+     * Trading"), jise keyword rules khud fire kar dete thay bina kisi scam
+     * message ke. Aur asli course/job/training ads roz aati hain jin par
+     * `.top`/`.xyz`/`.link` TLD lagte hain — har ek "suspicious link" ban
+     * jati thi (test: careercourse.top, jobsapply.xyz, smmcourse.link,
+     * ccna-course.work — 4/4 FP).
+     *
+     * Strict mode sirf alert KAM karta hai, miss nahi karta: rules chalti
+     * rehti hain, bas 2 anchors maangti hain — to asli group scam (OTP
+     * mangna, prize/lottery claim) phir bhi pakda jata hai.
      */
     fun classifyMessageWithSeverity(
         title: String,
@@ -339,38 +375,70 @@ object TextRules {
         context: Context,
         trustedSender: Boolean = false,
         isGroup: Boolean = false,
+        isChannel: Boolean = false,
     ): Pair<String, String>? {
-        val full = "$title $body".lowercase()
+        // Group AUR broadcast channel dono ke liye strict mode.
+        //
+        // Channel me to sirf title ko scan karna hi sahi nahi — channel ka
+        // naam hi marketing text hota hai ("Daily Profit Trading 💰"), jo
+        // khud keyword rules fire kar deta tha bina kisi actual scam
+        // message ke.
+        val strict = isGroup || isChannel
 
-        // Saved contact / trusted group se aayi message — koi alert nahi.
+        // Strict mode me sirf message ka content scan hota hai, title nahi.
+        // 1:1 me title chhorna zaroori nahi (wo number/naam hai, content
+        // nahi) — magar scan karne se koi nuksan nahi, is liye wahan bhi
+        // sirf body rakhte hain taaki dono modes ka behaviour same rahe.
+        val full = body.lowercase()
+
+        // Saved contact ya number pehle verified scam list me hai —
+        // koi alert nahi.
         if (trustedSender) return null
 
-        // Bank ki apni OTP/alert SMS — keyword rules skip, link check phir bhi
-        // `Severity` NumberRules ke andar nested enum hai — `import ...NumberRules.Severity`
-        // ke baghair ye unresolved reference deta tha aur module compile nahi hua tha.
-        if (!looksLikeOtpDelivery(full)) {
-            match(full)?.let { return it to NumberRules.Severity.SCAM.name.lowercase() }
-            // Tier B (kamzor OTP signal) sirf amber — laal scam nahi.
-            if (isWeakOtpSignal(full)) {
-                matchOtpHarvest(full)?.let { return it to NumberRules.Severity.SUSPICIOUS.name.lowercase() }
-            } else {
-                matchOtpHarvest(full)?.let { return it to NumberRules.Severity.SCAM.name.lowercase() }
+        // Group/channel me title ka number sender ka nahi hota — skip.
+        if (!strict) {
+            val senderNumber = extractSenderNumber(title)
+            if (senderNumber != null &&
+                NumberRules.classify(senderNumber, context) == NumberRules.Severity.SCAM
+            ) {
+                return "Sender number community-reported scam hai" to
+                    NumberRules.Severity.SCAM.name.lowercase()
             }
         }
-        // Group mein sirf text-based scam alert karta hai — link nahi.
-        // 1:1 chat mein link analysis chalti hai (wahan sender ki identity hai).
-        if (!isGroup) {
+
+        // Bank ki apni OTP/alert SMS — keyword rules skip, link check phir bhi.
+        if (!looksLikeOtpDelivery(full)) {
+            match(full, strict)?.let {
+                return it to NumberRules.Severity.SCAM.name.lowercase()
+            }
+            // Strict mode (group/channel) me sirf Tier A (pakka scam) alert
+            // karta hai; Tier B (kamzor "verify karein") skip.
+            if (strict) {
+                matchOtpHarvest(full, strict = true)?.let {
+                    return it to NumberRules.Severity.SCAM.name.lowercase()
+                }
+            } else {
+                // Tier A = scam (laal), Tier B = sirf amber. Dono ek hi
+                // call se decide hote hain: Tier B tab hota hai jab koi
+                // "bhej/maangein" word nahi hai.
+                val weak = isWeakOtpSignal(full)
+                matchOtpHarvest(full, strict = false)?.let { label ->
+                    val level = if (weak) NumberRules.Severity.SUSPICIOUS
+                                else NumberRules.Severity.SCAM
+                    return label to level.name.lowercase()
+                }
+            }
+        }
+
+        // Link analysis sirf 1:1 chat me. Group/channel me sender ki
+        // identity available hi nahi hoti — wahan asli course/job/bank
+        // ads roz aati hain, har ek "suspicious link" ban jati thi.
+        if (!strict) {
             matchSuspiciousLink(full)?.let {
                 return it to NumberRules.Severity.SUSPICIOUS.name.lowercase()
             }
         }
 
-        // Sender number community-reported scam list mein ho — pakki baat.
-        // Sirf tab jab title poori tarah ek number ho; warna group title jaise
-        // "Class 2024 batch" me ka "2024" number samajh ke check hota tha.
-        val senderNumber = extractSenderNumber(title) ?: return null
-        if (NumberRules.classify(senderNumber, context) == NumberRules.Severity.SCAM)
-            return "Sender number community-reported scam hai" to NumberRules.Severity.SCAM.name.lowercase()
         return null
     }
 

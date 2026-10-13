@@ -55,18 +55,21 @@ class CallStateReceiver : BroadcastReceiver() {
         }
 
         val subject = if (number.isNullOrEmpty()) "Hidden/Unknown number" else number
-        val label = when (severity) {
+val label = when (severity) {
             NumberRules.Severity.SCAM ->
                 "Impersonation / community-reported scam number — ye number bank ya sarkari idare ka NAHI hai"
             NumberRules.Severity.SUSPICIOUS ->
                 if (number.isNullOrEmpty())
                     "Hidden caller-ID se call — banks/authorities kabhi caller ID chhupa kar call nahi karte. OTP/info share se pehle verify karein."
                 else
-                    "Unverified UAN-style number — scammers official-looking bank numbers spoof karte hain"
+                    "Unverified UAN-style number — scammers official-looking bank numbers spoof kar sakte hain"
             else -> "Unknown incoming number"
         }
         Log.d("CallGuard", "classify -> $severity")
-        FraudNotifier.show(context, subject, label, severity.name.lowercase())
-        CallGuardModule.emitCallDetected(subject, severity.name.lowercase(), "phone", true)
+        // `show` cooldown ki wajah se false return kar sakta hai — tab
+        // `alerted = false` emit karo taake JS alert history me duplicate
+        // entry na bane.
+        val notified = FraudNotifier.show(context, subject, label, severity.name.lowercase())
+        CallGuardModule.emitCallDetected(subject, severity.name.lowercase(), "phone", notified)
     }
 }

@@ -86,9 +86,10 @@ class FraudNotificationListener : NotificationListenerService() {
             context = applicationContext,
             trustedSender = trusted,
             // Group me sender ki identity available nahi hoti (title group ka
-            // naam hota hai) — is liye link analysis wahan chalti hi nahi.
-            // Sirf text-based scam: OTP mangna, prize/lottery, bank impersonation.
+            // naam hota hai), aur broadcast channel ka title to khud marketing
+            // text hai — dono strict mode me jaate hain.
             isGroup = parsed.isGroup,
+            isChannel = !parsed.isGroup && isChannelTitle(parsed.identity),
         )
         if (verdict == null) {
             Log.d("CallGuard", "message classified SAFE (no alert): sender='$title'")
@@ -98,8 +99,8 @@ class FraudNotificationListener : NotificationListenerService() {
 
         val subject = title.ifEmpty { "New message" }
         // Severity TextRules ka apni hai — "scam" par laal, "suspicious" par amber.
-        FraudNotifier.show(this, subject, verdict.first, verdict.second)
-        CallGuardModule.emitMessageDetected(subject, verdict.first, source, verdict.second)
+        val notified = FraudNotifier.show(this, subject, verdict.first, verdict.second)
+        CallGuardModule.emitMessageDetected(subject, verdict.first, source, if (notified) verdict.second else "cooldown")
     }
 
     private fun handleIncomingWhatsAppCall(title: String) {
@@ -139,8 +140,8 @@ class FraudNotificationListener : NotificationListenerService() {
             else ->
                 "Unverified UAN-style number ne WhatsApp se call kiya — banks/authorities WhatsApp par call nahi karti. OTP ya paisa maange to scam hai."
         }
-        FraudNotifier.show(this, number, label, severity.name.lowercase())
-        CallGuardModule.emitCallDetected(number, severity.name.lowercase(), "whatsapp", true)
+        val notified = FraudNotifier.show(this, number, label, severity.name.lowercase())
+        CallGuardModule.emitCallDetected(number, severity.name.lowercase(), "whatsapp", notified)
     }
 
     /**
@@ -153,6 +154,32 @@ class FraudNotificationListener : NotificationListenerService() {
      * unke messages bhi anchor-gated rules se guzarte hain.
      */
     private data class Sender(val identity: String, val isGroup: Boolean)
+
+    /**
+     * Broadcast channel detection (Telegram channels, WhatsApp broadcast).
+     *
+     * Channel ka title hi marketing text hota hai ("Daily Profit Trading",
+     * "Crypto Signals Free") — wo title keyword rules fire kar deta tha
+     * bina kisi actual scam message ke. Is liye channel bhi group jaisa
+     * strict treat hota hai: title scan nahi, 2 anchors, link skip.
+     *
+     * Ye conservative heuristic hai: channel ko group jaisa treat karna sirf
+     * alert KAM karta hai (FP fix). Rules tab bhi chalti hain, bas 2 anchors
+     * maangti hain — is liye asli channel scam (OTP mangna, prize/lottery)
+     * phir bhi pakda jata hai.
+     */
+    private val CHANNEL_HINTS = listOf(
+        "channel", "broadcast", "newsletter", "official updates",
+        "signal", "signals", "profit", "trading", "crypto", "vip",
+    )
+
+    private fun isChannelTitle(title: String): Boolean {
+        val t = title.trim().lowercase()
+        if (t.isEmpty()) return false
+        // Title me number ya "@" ho to wo sender identity hai, channel nahi.
+        if (NUMBER_REGEX.containsMatchIn(t) || t.startsWith("@")) return false
+        return CHANNEL_HINTS.any { t.contains(it) }
+    }
 
     private fun parseSender(title: String): Sender {
         val isGroup = GROUP_COUNT_REGEX.containsMatchIn(title)
@@ -170,13 +197,6 @@ class FraudNotificationListener : NotificationListenerService() {
         // WhatsApp/Telegram GROUP kabhi trusted nahi — group aik insaan nahi hai,
         // usme bhi unknown log lottery/OTP scam drop karte hain. Group ka naam
         // phonebook se match ho to bhi scan karo.
-        //
-        // Group me bhi ASLI scam pakdi jati hai — magar sirf text-based signals
-        // (OTP mangna, prize/lottery, bank impersonation), link nahi. Text rules
-        // anchors-gated hain, is liye FP bojh kam hai, aur sender ki identity
-        // na hone ki wajah se link par faisla lagana galat hota ( asli course/job
-        // ads roz aati hain). Link check `classifyMessageWithSeverity(isGroup=true)`
-        // se skip hoti hai.
         if (parsed.isGroup) return false
         if (NUMBER_REGEX.containsMatchIn(parsed.identity)) {
             val number = extractNumber(parsed.identity) ?: return false
