@@ -1,97 +1,14 @@
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-# from fraud_detector import analyze_text
-# from audio_handler import analyze_audio
-# import os
-
-# app = Flask(__name__)
-
-# # ✅ More explicit CORS config
-# CORS(app, resources={r"/*": {"origins": "*"}})
-
-# UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
-# os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-# @app.route("/")
-# def home():
-#     return jsonify({"status": "Fraud Detector API is running"})
-
-# @app.route("/analyze/text", methods=["POST", "OPTIONS"])
-# def analyze_text_route():
-#     if request.method == "OPTIONS":
-#         return jsonify({}), 200          # ✅ handle preflight manually too
-
-#     data = request.get_json()
-
-#     if not data or "text" not in data:
-#         return jsonify({"error": "No text provided"}), 400
-
-#     text = data["text"].strip()
-#     if len(text) < 3:
-#         return jsonify({"error": "Text too short"}), 400
-
-#     try:
-#         result = analyze_text(text)
-#         return jsonify(result)
-#     except Exception as e:
-#         error_msg = str(e)
-#         # ✅ Give a clear message for quota errors
-#         if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-#             return jsonify({
-#                 "error": "Gemini quota exceeded. Wait a few minutes and try again, or test with a message that matches scam patterns (OTP, HBL, block) — those use the rule engine and don't need Gemini."
-#             }), 429
-#         return jsonify({"error": error_msg}), 500
-
-# @app.route("/analyze/audio", methods=["POST", "OPTIONS"])
-# def analyze_audio_route():
-#     if request.method == "OPTIONS":
-#         return jsonify({}), 200
-
-#     if "file" not in request.files:
-#         return jsonify({"error": "No audio file provided"}), 400
-
-#     file = request.files["file"]
-#     if file.filename == "":
-#         return jsonify({"error": "Empty filename"}), 400
-
-#     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-#     file.save(file_path)
-
-#     try:
-#         result = analyze_audio(file_path)
-#         return jsonify(result)
-#     except Exception as e:
-#         error_msg = str(e)
-#         if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-#             return jsonify({"error": "Gemini quota exceeded. Try again in a few minutes."}), 429
-#         return jsonify({"error": error_msg}), 500
-#     finally:
-#         if os.path.exists(file_path):
-#             os.remove(file_path)
-
-
-# # main.py mein yeh route add karo — sirf testing ke liye
-# @app.route("/test-keys")
-# def test_keys():
-#     gemini_key = os.getenv("GEMINI_API_KEY")
-#     assembly_key = os.getenv("ASSEMBLYAI_API_KEY")
-#     return jsonify({
-#         "gemini_loaded": gemini_key is not None,
-#         "gemini_preview": gemini_key[:12] + "..." if gemini_key else "MISSING",
-#         "assemblyai_loaded": assembly_key is not None,
-#         "assemblyai_preview": assembly_key[:12] + "..." if assembly_key else "MISSING"
-#     })
-
-# if __name__ == "__main__":
-#     app.run(debug=True, port=5000)
-
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from fraud_detector import analyze_text
 from audio_handler import analyze_audio
+from number_screening import (
+    check_number as screen_number,
+    report_number,
+    unreport_number,
+    number_lists,
+)
 import os
-import logging
 
 
 app = Flask(__name__)
@@ -143,51 +60,55 @@ def handle_audio():
 
     return jsonify(result)
 
-# Verified legitimate Pakistani bank/telco UAN numbers
-LEGITIMATE_NUMBERS = [
-    "111124444",   # JazzCash UAN
-    "111003737",   # Easypaisa UAN
-    # Aur banks ke verified UAN yahan add karte rahna jaise confirm ho
-]
 
-# Community-reported scam numbers (yahan grow hoga jaise reports aayenge)
-REPORTED_SCAM_NUMBERS = []
+# --- Number screening -------------------------------------------------------
+#
+# Ye teen routes pehle MISSING thay, jabke mobile app inhein call karta hai.
+# Isi liye `syncRules()` silently fail hoti thi aur native rules empty
+# rehte thay — aur khali legit list ka seedha asar ye hota ke HBL
+# 111-111-425 jaise real helpline numbers bhi "unknown 111 UAN" par
+# SUSPICIOUS aa jate thay.
 
 @app.route('/check-number', methods=['POST'])
-def check_number():
-    data = request.json
-    raw_number = data.get('number', '')
+def check_number_route():
+    data = request.json or {}
+    result = screen_number(
+        data.get('number', ''),
+        # Mobile phonebook cache se ye flag bhejta hai. Is ke bina har
+        # saved contact (dost, family, delivery rider) "unknown" samajh
+        # aata tha.
+        is_saved_contact=bool(data.get('saved_contact', False)),
+    )
+    status = 400 if result.get('status') == 'error' else 200
+    return jsonify(result), status
 
-    # Number ko clean karo (spaces, dashes, +92 hatao for comparison)
-    cleaned = raw_number.replace(" ", "").replace("-", "").replace("+92", "").lstrip("0")
+@app.route('/report-number', methods=['POST'])
+def report_number_route():
+    data = request.json or {}
+    result = report_number(
+        data.get('number', ''),
+        data.get('note', ''),
+        # Client ki device id — iske baghair aik hi banda 5 baar report
+        # kar ke number block kar sakta tha ("5 alag users" ka matlaw hi
+        # nahi banta).
+        reporter=data.get('reporter', ''),
+    )
+    # Verified number par report REJECT hota hai — mobile UI ko ye message
+    # dikhata hai, is liye 400 zaroori hai (fetch `!response.ok` check karta hai).
+    status = 400 if result.get('status') == 'error' else 200
+    return jsonify(result), status
 
-    if cleaned in REPORTED_SCAM_NUMBERS:
-        return jsonify({
-            "status": "scam",
-            "message": "This number has been reported as fraudulent by other users.",
-            "confidence": "high"
-        })
+@app.route('/unreport-number', methods=['POST'])
+def unreport_number_route():
+    data = request.json or {}
+    result = unreport_number(data.get('number', ''))
+    status = 400 if result.get('status') == 'error' else 200
+    return jsonify(result), status
 
-    if cleaned in LEGITIMATE_NUMBERS:
-        return jsonify({
-            "status": "safe",
-            "message": "Verified official number.",
-            "confidence": "high"
-        })
+@app.route('/number-lists', methods=['GET'])
+def number_lists_route():
+    return jsonify(number_lists()), 200
 
-    # Agar mobile number (03xx) hai aur koi bank claim kar raha ho — unknown/caution
-    if cleaned.startswith("3") and len(cleaned) == 10:
-        return jsonify({
-            "status": "unknown",
-            "message": "Personal mobile number — banks typically call from official UAN lines, not personal numbers.",
-            "confidence": "medium"
-        })
-
-    return jsonify({
-        "status": "unknown",
-        "message": "Number not in database. Verify independently before sharing information.",
-        "confidence": "low"
-    })
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
