@@ -136,6 +136,9 @@ The frontend is a dual-purpose Vite project:
 ### 3. Mobile Application (`/FraudGuardExpo`)
 The production mobile implementation based on Expo SDK 54:
 - **`AnalyzerScreen.js`**: Replicates the text, file, and audio analyzer on mobile, plus adds an interactive **Number Checker** tab for verifying Pakistani phone numbers.
+- **`src/services/session.js`** and **`api.js`**: The app talks only to the `/v1` API. On first use it silently gets its own anonymous token, kept in the phone's secure storage. There is no login screen.
+- **`app/verify-email.tsx`**: One-time email code, asked for only when the user reports a number.
+- **`app/account.tsx`**: Shows whether the email is verified and lets the user delete their account and data.
 - **`app/alert.tsx`**: Full-screen high-urgency alert screen triggered when a scam call or message is intercepted. Includes an emergency report button and direct links to the FIA portal and complaint email.
 - **`app/notifications.tsx`**: Alert history list reviewing past flagged calls and messages.
 - **Custom Native Module (`modules/expo-call-guard`)**:
@@ -244,6 +247,8 @@ python main.py
 ```
 Locally nothing else is needed: the `/v1` API uses a SQLite file (`backend/fraudguard-dev.db`) and email codes are printed in the server log.
 
+Without a `JWT_SECRET`, the server makes a new random one on every start, so the app is signed out (back to a fresh anonymous account) each time you restart it. To keep your test account across restarts, add a line `JWT_SECRET=<any 32+ characters>` to `backend/.env`.
+
 Run the tests (from `backend/`):
 ```bash
 python -m tests.test_pattern_matcher
@@ -286,7 +291,10 @@ npm install
 cp .env.example .env   # then set EXPO_PUBLIC_API_URL for your device
 npx expo start
 ```
-For native call & notification monitoring on an Android device:
+To test on a real phone with Expo Go, set `EXPO_PUBLIC_API_URL` in `.env` to your computer's Wi-Fi address (for example `http://192.168.1.100:5000`) and keep the phone on the same Wi-Fi.
+
+**Expo Go runs only part of the app.** The analyzer, number checker, email verification and account screens work there. Call screening and WhatsApp/SMS scanning are custom Android code, which Expo Go cannot load, so those features are switched off in it. Testing them needs a development build:
 ```bash
-npx expo run:android
+npx expo run:android          # needs Android Studio on this machine
+eas build --profile development --platform android   # or build in Expo's cloud
 ```
