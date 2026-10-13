@@ -31,7 +31,7 @@ BACKEND_DIR = os.path.join(PROJECT_ROOT, "backend")
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
-DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+DATA_DIR = os.path.join(BACKEND_DIR, "data")
 SCAM_PATTERNS_FILE = os.path.join(DATA_DIR, "scam_patterns.json")
 OFFICIAL_DIRECTORY_FILE = os.path.join(DATA_DIR, "official_directory.json")
 
