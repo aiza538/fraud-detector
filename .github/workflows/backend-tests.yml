@@ -4,11 +4,14 @@ on:
   pull_request:
     paths:
       - "backend/**"
+      # phone ke rules backend/data/phone_rules.json se match hone chahiye
+      - "FraudGuardExpo/modules/expo-call-guard/**"
       - ".github/workflows/backend-tests.yml"
   push:
     branches: [dev]
     paths:
       - "backend/**"
+      - "FraudGuardExpo/modules/expo-call-guard/**"
       - ".github/workflows/backend-tests.yml"
 
 permissions:
@@ -36,5 +39,5 @@ jobs:
           python -m tests.test_pattern_matcher
           python -m tests.test_number_screening
           python -m tests.test_group_messages
-      - name: Detection accuracy and /v1 API
-        run: python -m unittest tests.test_detection_accuracy tests.test_api_v1
+      - name: Detection accuracy, /v1 API and phone rules
+        run: python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_phone_rules

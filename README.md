@@ -95,6 +95,7 @@ The backend operates as the central intelligence engine:
   - `POST /v1/auth/email/start` and `/v1/auth/email/verify`: 6-digit email code (10-minute expiry, 5 attempts). Needed only to report a number.
   - `POST /v1/analyze/text`, `POST /v1/analyze/audio`: Same analysis as before, with per-user and per-network daily limits.
   - `POST /v1/check-number`, `GET /v1/number-lists`: Same screening rules as the legacy routes.
+  - `GET /v1/rules`: The phone's background message-scanner rules (`data/phone_rules.json`). This and `/v1/number-lists` send an `ETag`, so the phone re-downloads only when something changed.
   - `POST /v1/report-number`: Verified users only. A number is confirmed after 5 reports from different networks, by reporters who verified their email at least 48 hours earlier. Reports expire after 180 days.
   - `POST /v1/admin/unreport-number`: Admins only (emails listed in `ADMIN_EMAILS`).
 - **`security.py`**: Token signing and checking, IP/email hashing, daily limits.
@@ -113,7 +114,8 @@ The backend operates as the central intelligence engine:
   - Transcribes audio into Urdu using AssemblyAI and routes the transcript to `analyze_text`.
 - **`data/`**:
   - `official_directory.json`: Verified official bank, telco, and authority helplines with source URLs.
-  - `scam_patterns.json`: Rule configurations for Lottery, JazzCash/EasyPaisa, Bank Impersonation, BISP, and Customs scams.
+  - `scam_patterns.json`: Rule configurations for Lottery, JazzCash/EasyPaisa, Bank Impersonation, BISP, and Customs scams. Used when a user asks the analyzer to check a message.
+  - `phone_rules.json`: The stricter rules the phone runs automatically on every incoming WhatsApp/SMS notification. Kept separate on purpose: the analyzer patterns raise false alarms on ordinary messages when run in the background.
   - `reported_numbers.json` & `verified_scam_numbers.json`: Stores community and FIA-verified scam entries.
 
 ---
@@ -247,7 +249,7 @@ Run the tests (from `backend/`):
 python -m tests.test_pattern_matcher
 python -m tests.test_number_screening
 python -m tests.test_group_messages
-python -m unittest tests.test_detection_accuracy tests.test_api_v1
+python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_phone_rules
 ```
 
 **Production settings** (Hugging Face Space secrets). The server will not start without the first three:

@@ -3,14 +3,16 @@
 Purane bina-token routes (main.py) tab tak rehte hain jab tak mobile app /v1
 par shift nahi hoti; uske baad wo delete honge.
 """
+import hashlib
 import hmac
+import json
 import os
 import secrets
 import tempfile
 import time
 import uuid
 
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, Response, g, jsonify, request
 from sqlalchemy import delete, distinct, func, select, update
 from sqlalchemy.exc import IntegrityError
 from werkzeug.exceptions import HTTPException
@@ -20,6 +22,7 @@ import config
 import fraud_detector
 import mailer
 import number_rules
+import phone_rules
 from db import EmailChallenge, NumberReport, UsageCounter, User, get_session
 from security import (ApiError, client_ip, consume_quota, consume_user_quota, hash_code,
                       hash_email, hash_ip, is_admin, issue_token, normalize_email,
@@ -46,6 +49,15 @@ def _http_error(err):
 def _body():
     data = request.get_json(silent=True)
     return data if isinstance(data, dict) else {}
+
+
+def _cacheable_json(payload, etag=None):
+    """JSON jawab ETag ke saath. Phone agli baar `If-None-Match` bhejta hai;
+    kuch na badla ho to sirf 304 jata hai, poori list dobara nahi."""
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    response = Response(body, mimetype="application/json")
+    response.set_etag(etag or hashlib.sha256(body.encode("utf-8")).hexdigest()[:32])
+    return response.make_conditional(request)
 
 
 def _session_payload(user):
@@ -297,13 +309,20 @@ def check_number():
 def number_lists():
     """Phone ke offline call-monitor ke rules. Sirf confirmed scam numbers —
     threshold se neeche wale (pending) numbers kisi ko nahi bheje jate."""
-    return jsonify({
+    return _cacheable_json({
         "legitimate": list(number_rules.ALL_LEGITIMATE),
         "directory": number_rules.ALL_LEGITIMATE,
         "scam": sorted(_confirmed_numbers(get_session())),
         "spoofable": number_rules.SPOOFABLE,
         "threshold": config.REPORT_THRESHOLD,
     })
+
+
+@v1.get("/rules")
+@require_user
+def rules():
+    """Phone ke background message scanner ke rules (data/phone_rules.json)."""
+    return _cacheable_json(phone_rules.PAYLOAD, etag=phone_rules.VERSION)
 
 
 @v1.post("/report-number")

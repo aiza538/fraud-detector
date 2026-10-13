@@ -19,69 +19,32 @@
 # 1:1 chat me link analysis chalti hai — wahan sender ki identity hoti hai.
 import re
 
+import phone_rules
+
 # --- TextRules.kt ka mirror --------------------------------------------------
+#
+# Rules aur word lists ab `data/phone_rules.json` se aate hain (wahi file jo
+# phone /v1/rules se download karta hai) — yahan unki haath se bani copy nahi.
+# Neeche ke functions sirf Kotlin ke matching LOGIC ka mirror hain.
 
-RULES = [
-    (["whatsapp", "ban", "verification", "code", "24 hour", "band", "recover", "forward"], 3,
-     ["verification code", "24 hour", "recover", "band"],
-     "WhatsApp account ban hoax — verification code mangna hijacking attempt hai"),
-    (["invest", "profit", "trading", "group", "dollar", "daily", "return", "fee", "telegram"], 3,
-     ["invest", "profit", "trading", "telegram"],
-     "Investment group scam — guaranteed daily profit Ponzi fraud hai"),
-    (["meri awaz", "voice", "audio message", "beta", "bachi", "loan", "udhaar", "paise bhej",
-      "emergency", "hospital"], 3,
-     ["meri awaz", "loan", "udhaar", "paise bhej"],
-     "Cloned voice / family emergency scam — voice message identity proof nahi"),
-    (["otp", "bhij", "bhej", "paise", "jaldi", "foran", "easypaisa", "jazzcash",
-      "account detail", "atm card"], 3,
-     ["otp", "easypaisa", "jazzcash", "account detail", "atm card"],
-     "Money/OTP harvesting message — koi bhi OTP ya payment request verify karke hi bhejein"),
-    (["otp", "verification code", "atm card", "card number", "cnic", "account detail",
-      "bank account", "account secure", "account block", "account band", "account freeze"], 2,
-     ["otp", "verification code", "atm card", "card number", "cnic", "account detail",
-      "bank account"],
-     "Credential harvesting attempt — bank/authority OTP, ATM details ya CNIC KABHI nahi mangta"),
-    (["lucky draw", "luckydraw", "prize bond", "prizebond", "coupon", "win", "won", "jeet",
-      "bike", "motorbike", "scooty", "mobile phone", "lottery", "cash price", "cash prize",
-      "inam", "mubarak", "rabta", "claim", "winner"], 3,
-     ["lucky draw", "luckydraw", "prize bond", "prizebond", "lottery", "cash prize",
-      "cash price", "winner", "inam", "rabta"],
-     "Lucky draw / prize scam — unknown SMS ka 'bike/cash jeet gaye' nara fake lottery bait hai"),
-]
+_RULES = phone_rules.PAYLOAD
+RULES = _RULES["rules"]
 
-# `.work`, `.loan`, `.cam`, `.rest`, `.monster` nikal diye gaye — ye aaj kal
-# bohat se ASLI companies (recruiters, training institutes) use karti hain.
-ABUSE_TLDS = [".tk", ".ml", ".ga", ".cf", ".gq", ".xyz", ".top", ".click", ".link",
-              ".buzz", ".icu", ".vip", ".quest", ".cyou"]
-OFFICIAL_SUFFIXES = [".gov.pk", ".gob.pk", ".edu.pk", ".gov", ".gob"]
-OFFICIAL_HOSTS = ["hbl.com", "ubl.com.pk", "nbp.com.pk", "mcb.com.pk", "alliedbank.com",
-                  "abl.com", "bankalfalah.com", "meezanbank.com", "bop.com.pk", "sc.com",
-                  "bankislami.com.pk", "faysalbank.com", "askari.com", "soneribank.com",
-                  "hmb.com.pk", "summitbank.com.pk", "karobank.com.pk", "sindhbank.gov.pk",
-                  "easypaisa.com.pk", "esappk.com", "jazzcash.com.pk", "jazz.com.pk",
-                  "zong.com.pk", "ufone.com", "telia.com.pk", "nadra.gov.pk", "fia.gov.pk",
-                  "fbr.gov.pk", "pta.gov.pk", "bisp.gov.pk", "sbp.org.pk",
-                  "complaint.sbp.org.pk", "sadapay.pk", "nayapay.com.pk"]
-GENERIC_TRUSTED = ["facebook.com", "instagram.com", "whatsapp.com", "google.com",
-                   "youtube.com", "twitter.com", "x.com", "linkedin.com", "microsoft.com",
-                   "apple.com"]
-BRAND_TOKENS = ["hbl", "nbp", "mcb", "ubl", "alfalah", "meezan", "islami", "askari",
-                "faysal", "soneri", "jamhoor", "samba", "silkbank", "kmb", "summit", "karo",
-                "citi", "standardchartered", "easypaisa", "jazzcash", "jazz", "zong", "ufone",
-                "telia", "nadra", "fbr", "fia", "pta", "bisp", "ehsaas", "statebank", "sbp",
-                "sadapay", "nepcard", "omnipay", "finja", "police", "court", "tax"]
+ABUSE_TLDS = _RULES["links"]["abuse_tlds"]
+OFFICIAL_SUFFIXES = _RULES["links"]["official_suffixes"]
+OFFICIAL_HOSTS = _RULES["links"]["official_hosts"]
+GENERIC_TRUSTED = _RULES["links"]["generic_trusted"]
+BRAND_TOKENS = _RULES["links"]["brand_tokens"]
 
 URL_RE = re.compile(r"""https?://[^\s<>"']+|www\.[^\s<>"']+""", re.I)
 IP_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
-OTP_DELIVERY_HINTS = ["do not share", "don't share", "donot share", "never share",
-                      "not share", "share na kare", "share mat kare", "share na kr",
-                      "kisi ke sath share", "kisi ko na", "for your security",
-                      "for the security", "not authorized"]
-OTP_WORDS = ["otp", "one time password", "one-time password", "verification code",
-             "otp number", "code bata"]
-GIVE_SEND = ["bhej", "bhij", "bej", "bheeg", "bhejna", "bhejo", "send", "forward", "share",
-             "dena", "deina", "dein", "dijiye", "day", "de", "dy", "di", "do"]
-GIVE_DEMAND = ["maang", "mang", "chahiye", "chahe", "milwa", "mila", "bataye", "bataiye"]
+OTP_DELIVERY_HINTS = _RULES["otp"]["delivery_hints"]
+OTP_NEGATION_HINTS = _RULES["otp"]["negation_hints"]
+OTP_WORDS = _RULES["otp"]["words"]
+GIVE_SEND = _RULES["otp"]["give_send"]
+GIVE_DEMAND = _RULES["otp"]["give_demand"]
+WEAK_ACTION = _RULES["otp"]["weak_action"]
+URGENCY = _RULES["otp"]["urgency"]
 
 
 def contains_keyword(hay, kw):
@@ -111,24 +74,28 @@ def looks_like_otp_delivery(text):
 
 def match_rules(text):
     low = text.lower()
-    for kws, mn, anchors, label in RULES:
-        matched = {k for k in kws if contains_keyword(low, k)}
-        if len(matched) < mn:
+    for rule in RULES:
+        matched = {k for k in rule["keywords"] if contains_keyword(low, k)}
+        if len(matched) < rule["min_match"]:
             continue
-        if not any(a in matched for a in anchors):
+        if not any(a in matched for a in rule["anchors"]):
             continue
-        return label
+        return rule["label"]
     return None
 
 
 def match_otp_harvest(text):
+    """Return (label, severity) ya None. Tier A (OTP + bhejo/maango) = scam;
+    Tier B (OTP + enter/verify + link ya jaldi) = suspicious."""
     low = text.lower()
-    if looks_like_otp_delivery(low) or "do not share" in low:
+    if looks_like_otp_delivery(low) or any(h in low for h in OTP_NEGATION_HINTS):
         return None
     if not has_any_word(low, OTP_WORDS):
         return None
     if has_any_word(low, GIVE_SEND) or has_any_word(low, GIVE_DEMAND):
-        return "OTP harvesting attempt"
+        return ("OTP harvesting attempt", "scam")
+    if has_any_word(low, WEAK_ACTION) and (URL_RE.search(low) or has_any_word(low, URGENCY)):
+        return ("OTP ke saath link ya foran-action", "suspicious")
     return None
 
 
@@ -179,7 +146,7 @@ def classify(title, body, trusted_sender=False, is_group=False):
         if (r := match_rules(full)):
             return (r, "scam")
         if (o := match_otp_harvest(full)):
-            return (o, "scam")
+            return o
     # --- YAHAN FIX HAI: group me link analysis chalti hi nahi ---
     if not is_group and (l := match_suspicious_link(full)):
         return (l, "suspicious")
