@@ -191,8 +191,28 @@ def handle_audio():
 OFFICIAL_DIRECTORY_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "data", "official_directory.json")
 
-def _load_official_directory():
-    doc = _load_json(OFFICIAL_DIRECTORY_FILE, {})
+def load_official_directory(region: str = None, filepath: str = None):
+    """Loads official directory with root region key filtering ('PK', 'GLOBAL', 'AE', 'UK').
+    
+    If region is provided, filters entities to that specific region.
+    If region is None, loads entities across all regions.
+    """
+    path = filepath or OFFICIAL_DIRECTORY_FILE
+    doc = _load_json(path, {})
+    # Multi-region schema support (PK, GLOBAL, AE, UK) with backward-compatible fallback
+    if isinstance(doc, dict) and "regions" in doc:
+        out = {}
+        for region_code, reg_info in doc["regions"].items():
+            if region and region_code.upper() != str(region).strip().upper():
+                continue
+            reg_entities = reg_info.get("entities", reg_info) if isinstance(reg_info, dict) else {}
+            for entity, meta in reg_entities.items():
+                if isinstance(meta, dict):
+                    numbers = meta.get("numbers") or []
+                    if numbers:
+                        out[entity] = numbers
+        if out:
+            return out
     entities = doc.get("entities", {}) if isinstance(doc, dict) else {}
     out = {}
     for entity, meta in entities.items():
@@ -201,6 +221,7 @@ def _load_official_directory():
             out[entity] = numbers
     return out
 
+_load_official_directory = load_official_directory
 LEGITIMATE_DIRECTORY = _load_official_directory()
 if not LEGITIMATE_DIRECTORY:
     # JSON missing/corrupt ho to app chup na ho — magar ye fail loudly karein,

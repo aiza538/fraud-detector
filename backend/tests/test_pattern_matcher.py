@@ -46,6 +46,29 @@ CASES = [
     (False, "Aap jeet gaye hain jeet ka coupon code: SAVE20 apply karein"),
     (False, "Order confirm karein aur payment JazzCash se bhej dein, invoice attach hai"),
     (False, "Password update ho gaya hai, security ke liye OTP ka maangna nahi chahiye"),
+
+    # Multi-Region: Urdu Script Patterns (PK)
+    (True, "احساس پروگرام کی جانب سے آپ کو 25000 رقم مبارک ہو"),
+    (True, "مبارک ہو آپ کا انعام نکلا ہے فیس جمع کروائیں"),
+    (True, "آپ کا بینک اکاؤنٹ بلاک ہو گیا ہے فوری او ٹی پی کی تصدیق کریں"),
+    (True, "اپنا او ٹی پی کوڈ فوری ارسال کریں"),
+    (True, "آپ کا پارسل کسٹمز میں روک لیا گیا ہے فیس ادا کریں"),
+    (True, "روزانہ منافع کمائیں ہمارے ٹیلیگرام گروپ میں ڈپازٹ کریں"),
+
+    # Multi-Region: Global Threat Vectors (GLOBAL)
+    (True, "Urgent: Submit your 12-word seed phrase to unlock your Binance wallet"),
+    (True, "MetaMask alert: Connect wallet and verify your secret recovery phrase to prevent suspension"),
+    (True, "DHL Express: Your parcel is held at the warehouse due to an unpaid delivery fee. Click link to confirm: http://dhl-pay.info"),
+    (True, "FedEx: Package held at customs clearance. Click link to pay delivery fee: https://fedex-clear.info"),
+    (True, "Your Apple ID has been locked due to unauthorized login attempts. Verify 2FA code here to unlock."),
+    (True, "Netflix: Your subscription has expired due to a declined payment. Update billing details immediately: https://netflix-renew.me"),
+
+    # Transactional & Tech Whitelists (Local & Global)
+    (False, "Mubarak! Aapka recharge Rs. 500 kamyabi se ho chuka hai."),
+    (False, "Dear Customer, your load of Rs 300 was successful."),
+    (False, "G-491028 is your Google verification code."),
+    (False, "Your WhatsApp code is 381-902. Do not share this code with anyone."),
+    (False, "Use 739104 as Microsoft account security code."),
 ]
 
 
@@ -58,7 +81,15 @@ def main():
             failed.append(f"expected {'fraud' if expected else 'no-verdict'}, got {verdict}\n  text: {text}")
     if failed:
         raise SystemExit("FAIL:\n" + "\n".join(failed))
-    print(f"OK - {len(CASES)} cases, rule engine sahi jagah chup hai aur sahi jagah bolta hai")
+    
+    # Test region filtering
+    pk_res = check_patterns("BISP ki 25000 rupee ki raqam aapke liye, 8171 wazeefa, paisa lene ke liye fee bhejein", region="PK")
+    assert pk_res is not None and pk_res["fraud"] is True, "PK pattern should match under PK region filter"
+    
+    global_res = check_patterns("Urgent: Submit your 12-word seed phrase to unlock your Binance wallet", region="PK")
+    assert global_res is not None and global_res["region"] == "GLOBAL", "Global patterns should match under PK corridor"
+    
+    print(f"OK - {len(CASES)} cases + region filtering, rule engine sahi jagah chup hai aur sahi jagah bolta hai")
 
 
 if __name__ == "__main__":
