@@ -19,13 +19,13 @@ official_directory.json
 └── _revoked_or_fraud_alerts (Revoked licenses & active impersonation alerts)
 ```
 
-Both [data/official_directory.json](file:///c:/Fraud-Guard/fraud-detector/data/official_directory.json) and [backend/data/official_directory.json](file:///c:/Fraud-Guard/fraud-detector/backend/data/official_directory.json) are kept strictly identical.
+The directory lives in one place only: [backend/data/official_directory.json](backend/data/official_directory.json).
 
 ---
 
 ## 2. Directory Schema Specification
 
-Defined in [data/official_directory.schema.json](file:///c:/Fraud-Guard/fraud-detector/data/official_directory.schema.json) adhering to JSON Schema Draft-07.
+Defined in [backend/data/official_directory.schema.json](backend/data/official_directory.schema.json) adhering to JSON Schema Draft-07.
 
 ### Entity Properties:
 * **`name`** *(string)*: Official registered institutional display name.
@@ -100,7 +100,7 @@ Includes full institutional details for:
 
 ## 4. Multi-Region Scam Pattern & Whitelist Architecture
 
-### 4.1. Pattern Database (`data/scam_patterns.json`)
+### 4.1. Pattern Database (`backend/data/scam_patterns.json`)
 
 The pattern database uses a hierarchical multi-region architecture structured under `regional.PK` and `regional.GLOBAL`, with backward-compatible aliases:
 
@@ -206,11 +206,11 @@ The pattern database uses a hierarchical multi-region architecture structured un
 ## 6. Verification & Test Coverage
 
 All automated test suites pass without regressions:
-* **Detection Accuracy & Whitelist Integrity Suite** ([tests/test_detection_accuracy.py](file:///c:/Fraud-Guard/fraud-detector/tests/test_detection_accuracy.py)):
+* **Detection Accuracy & Whitelist Integrity Suite** ([backend/tests/test_detection_accuracy.py](backend/tests/test_detection_accuracy.py)):
   - **Scam Detection Rate**: **100.00%** (18/18 detected, target: >95.0%).
   - **False Positive Rate**: **0.00%** (0/12 triggered across legitimate Pakistani bank OTPs and Global 2FA codes).
   - **Caller ID / Levenshtein Precision**: **100.00%** (9/9 correct across `OFFICIAL_VERIFIED`, `SPOOF_SUSPECT`, and `UNVERIFIED`).
-  - **Multi-Region Loader Validation**: Root region parsing (`PK` and `GLOBAL`) verified for both [data/scam_patterns.json](file:///c:/Fraud-Guard/fraud-detector/data/scam_patterns.json) and [data/official_directory.json](file:///c:/Fraud-Guard/fraud-detector/data/official_directory.json).
+  - **Multi-Region Loader Validation**: Root region parsing (`PK` and `GLOBAL`) verified for both [backend/data/scam_patterns.json](backend/data/scam_patterns.json) and [backend/data/official_directory.json](backend/data/official_directory.json).
 * **Caller ID Screening Tests** (22 test cases): Area-code prefixed UANs, bare UANs, shortcodes (`1991`, `8171`, `1700`, `1777`, `1717`), toll-free lines, Levenshtein spoof detections (HBL, Meezan), consensus threshold handling, and personal mobile pass-throughs pass 100%.
 * **Pattern Matching Tests** (46 test cases): Validated that normal conversation messages, legitimate bank OTP SMS alerts, and telecom recharge receipts remain silent, while domestic Pakistani scams (Roman Urdu & Urdu script) and global cross-border threats (Crypto drainers, DHL/FedEx holds, Apple ID lockouts) are reliably flagged with statutory PECA citations.
 * **Group Chat & Context Screening Tests** (16 test cases): Group link suppression and 1:1 threat identification verified.

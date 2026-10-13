@@ -12,7 +12,6 @@ An end-to-end, Pakistan-specific cybercrime and financial scam detection ecosyst
    - [1. Backend API (`/backend`)](#1-backend-api-backend)
    - [2. Web App & Chrome Extension (`/frontend`)](#2-web-app--chrome-extension-frontend)
    - [3. Mobile Application (`/FraudGuardExpo`)](#3-mobile-application-fraudguardexpo)
-   - [4. Legacy & Starter Folders (`/FraudGuardMobile` & `/legacy`)](#4-legacy--starter-folders-fraudguardmobile--legacy)
 5. [How Fraud Detection Works (Under the Hood)](#-how-fraud-detection-works-under-the-hood)
 6. [What Remains Behind (Current Gaps & Incomplete Areas)](#-what-remains-behind-current-gaps--incomplete-areas)
 7. [Recommended Features for the Future](#-recommended-features-for-the-future)
@@ -55,14 +54,11 @@ fraud-detector/
 │   ├── src/background.js     # Chrome Extension service worker
 │   └── manifest.json         # Manifest V3 configuration for Chrome Extension
 │
-├── FraudGuardExpo/           # React Native / Expo SDK 54 Android App
-│   ├── app/                  # Expo Router file-based screens (Analyzer, Alerts, History)
-│   ├── src/screens/          # Analyzer screen with live phone number checker
-│   ├── src/services/         # API clients, caller ID, contact checks, and FIA links
-│   └── modules/expo-call-guard/ # Custom Kotlin Android module for call & notification interception
-│
-├── FraudGuardMobile/         # (Legacy) Bare React Native starter CLI template
-└── legacy/FraudGuardMobile/  # (Legacy) Archived initial React Native backup
+└── FraudGuardExpo/           # React Native / Expo SDK 54 Android App
+    ├── app/                  # Expo Router file-based screens (Analyzer, Alerts, History)
+    ├── src/screens/          # Analyzer screen with live phone number checker
+    ├── src/services/         # API clients, caller ID, contact checks, and FIA links
+    └── modules/expo-call-guard/ # Custom Kotlin Android module for call & notification interception
 ```
 
 ---
@@ -135,13 +131,6 @@ The production mobile implementation based on Expo SDK 54:
 
 ---
 
-### 4. Legacy & Starter Folders (`/FraudGuardMobile` & `/legacy`)
-- **`FraudGuardMobile`**: Initial bare React Native CLI project (React Native 0.86). Contains default starter templates.
-- **`legacy/FraudGuardMobile`**: Backup copy of the bare project before migrating to Expo SDK 54.
-- *Status*: Superseded by `FraudGuardExpo`. Neither folder is used in the active running application.
-
----
-
 ## ⚙️ How Fraud Detection Works (Under the Hood)
 
 ```mermaid
@@ -185,9 +174,7 @@ While the core scam detection logic is robust, several parts of the codebase rem
    - Backend data (`reported_numbers.json`, `verified_scam_numbers.json`) is read and written directly to local JSON files on disk using Python locks. If hosted on serverless platforms, container restarts or multi-worker Gunicorn processes will overwrite or lose data.
 5. **Basic Chrome Extension DOM Handling**:
    - `frontend/src/content.js` relies on a generic `alert()` modal and a basic DOM selector (`span[dir="ltr"]`). It does not highlight suspicious chat bubbles directly on WhatsApp Web.
-6. **Dead Code & Leftover Folders**:
-   - The root contains both `FraudGuardMobile` and `legacy/FraudGuardMobile`, which are bare React Native starter templates leftover from earlier prototypes and take up disk space without being connected.
-7. **Audio Transcription Language Nuance**:
+6. **Audio Transcription Language Nuance**:
    - Audio transcription currently hardcodes `language_code="ur"`. Pakistani voice notes often blend Punjabi, Urdu, and English ("code bhej do", "account block ho gya hai"), which can cause AssemblyAI transcription drops unless multilingual auto-detection is enabled.
 
 ---
@@ -257,6 +244,7 @@ To load the Chrome extension:
 ```bash
 cd FraudGuardExpo
 npm install
+cp .env.example .env   # then set EXPO_PUBLIC_API_URL for your device
 npx expo start
 ```
 For native call & notification monitoring on an Android device:
