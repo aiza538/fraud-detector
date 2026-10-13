@@ -28,4 +28,22 @@ dist-ssr
 
 prompt.txt
 context.md
+
+# --- Secrets ---
 backend/.env
+# ⚠️ Ye file pehle GIT-TRACKED thi. Isay untrack karna zaroori hai
+# (keeps the real URL, koi key nahi) — history se purge karna padega.
+FraudGuardExpo/.env
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+backend/uploads/
+
+# --- Android / local dev artifacts ---
+AndroidSdk/
+FraudGuardExpo/modules/**/android/build/
+*.keystore
+!debug.keystore
