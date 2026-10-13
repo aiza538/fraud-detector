@@ -57,8 +57,9 @@ export default function AnalyzerScreen() {
       }
       setResult(data);
       showToast("Analysis complete!", "success");
-    } catch {
-      showToast("Backend connection failed.", "error");
+    } catch (err) {
+      // Server ka apna message (jaise daily limit) dikhao; network par default.
+      showToast(err.message || "Backend connection failed.", "error");
     } finally {
       setLoading(false);
     }
@@ -75,8 +76,9 @@ export default function AnalyzerScreen() {
       }
       setResult(data);
       showToast("File analysis complete!", "success");
-    } catch {
-      showToast("Backend connection failed.", "error");
+    } catch (err) {
+      // Server ka apna message (jaise daily limit) dikhao; network par default.
+      showToast(err.message || "Backend connection failed.", "error");
     } finally {
       setLoading(false);
     }
@@ -98,8 +100,9 @@ export default function AnalyzerScreen() {
       }
       setResult(data);
       showToast("Audio analysis complete!", "success");
-    } catch {
-      showToast("Backend connection failed.", "error");
+    } catch (err) {
+      // Server ka apna message (jaise daily limit) dikhao; network par default.
+      showToast(err.message || "Backend connection failed.", "error");
     } finally {
       setLoading(false);
     }
@@ -113,6 +116,11 @@ export default function AnalyzerScreen() {
       >
         <View style={styles.header}>
           <TouchableOpacity
+            style={styles.accountButton}
+            onPress={() => router.push("/account")}>
+            <Text style={styles.bellEmoji}>👤</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={styles.bellButton}
             onPress={() => router.push("/notifications")}>
             <Text style={styles.bellEmoji}>🔔</Text>
@@ -121,7 +129,7 @@ export default function AnalyzerScreen() {
             <Text style={styles.iconEmoji}>🛡️</Text>
           </View>
           <Text style={styles.title}>
-            FraudGuard <Text style={styles.titleGreen}>PK</Text>
+            FraudGuard <Text style={styles.titleGreen}>AI</Text>
           </Text>
           <Text style={styles.subtitle}>
             AI-powered scam detection for text, files & audio
@@ -214,6 +222,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#f0f9ff" },
   container: { padding: 20, paddingBottom: 40 },
   header: { alignItems: "center", marginBottom: 20 },
+  accountButton: { position: "absolute", left: 0, top: 0, padding: 8, zIndex: 10 },
   bellButton: { position: "absolute", right: 0, top: 0, padding: 8, zIndex: 10 },
   bellEmoji: { fontSize: 22 },
   iconBadge: {

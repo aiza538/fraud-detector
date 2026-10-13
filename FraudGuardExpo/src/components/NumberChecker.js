@@ -8,7 +8,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { checkNumber, reportNumber, unreportNumber } from "../services/api";
+import { useRouter } from "expo-router";
+import { checkNumber, reportNumber } from "../services/api";
 import { checkCallerID } from "../services/CallerIDService";
 import { checkContact } from "../../modules/expo-call-guard";
 import { syncRules } from "../services/callMonitor";
@@ -58,6 +59,7 @@ function localCheck(rawNumber) {
 }
 
 export default function NumberChecker({ onToast }) {
+  const router = useRouter();
   const [number, setNumber] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -84,7 +86,12 @@ export default function NumberChecker({ onToast }) {
         return;
       }
       setResult({ ...data, rawNumber: trimmed });
-    } catch {
+    } catch (err) {
+      // Server ne khud mana kiya (jaise daily limit) — wahi message dikhao.
+      if (err.status) {
+        onToast?.(err.message, "error");
+        return;
+      }
       // Backend unreachable — synced directory se jawab dein. Hamesha kuch
       // return karta hai (unknown bhi) taake user ko "kuch bhi nahi mila"
       // ki jagah clear "no match, no alert" mile.
@@ -111,24 +118,18 @@ export default function NumberChecker({ onToast }) {
         onToast?.(res.message || "Report darj ho gaya.", "info");
       }
     } catch (err) {
+      // Report sirf email-verified user kar sakta hai — verify screen kholo;
+      // wapas aa kar user dobara Report dabata hai.
+      if (err.code === "email_verification_required") {
+        onToast?.("Report karne ke liye pehle email verify karein.", "info");
+        router.push("/verify-email");
+        return;
+      }
       // Backend verified number par report reject karta hai (400) — user ko
       // clear message dikhana zaroori hai warna "silently kuch nahi hua".
       onToast?.(err.message || "Report nahi ho saka — dobara try karein.", "error");
     } finally {
       setReporting(false);
-    }
-  };
-
-  // Appeal: kisi ka apna number galat block ho gaya ho to wapas claim karo.
-  // Ye path pehle backend par hi nahi tha.
-  const handleAppeal = async () => {
-    try {
-      const res = await unreportNumber(result.rawNumber);
-      setResult((r) => ({ ...r, status: "unknown" }));
-      syncRules();
-      onToast?.(res.message || "Block hat gaya.", "success");
-    } catch (err) {
-      onToast?.(err.message || "Appeal nahi ho saka.", "error");
     }
   };
 
@@ -223,16 +224,6 @@ export default function NumberChecker({ onToast }) {
           block ho jata.
         </Text>
       )}
-
-      {/* Appeal: agar ye aap ka apna number hai aur galti se scam mark ho gaya
-          hai, to yahan se wapas claim karein. */}
-      {result?.status === "scam" && !result.offline && (
-        <TouchableOpacity style={styles.appealButton} onPress={handleAppeal}>
-          <Text style={styles.appealText}>
-            Ye mera apna number hai — block hat karo
-          </Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
@@ -281,15 +272,6 @@ const styles = StyleSheet.create({
   provenance: { fontSize: 11, color: "#991b1b", marginTop: 8, fontWeight: "600" },
   confidence: { fontSize: 11, color: "#6b7280", marginTop: 8 },
   consensusNote: { fontSize: 11, color: "#6b7280", marginTop: 8, lineHeight: 16 },
-  appealButton: {
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 12,
-    paddingVertical: 11,
-    alignItems: "center",
-  },
-  appealText: { color: "#475569", fontSize: 13, fontWeight: "600" },
   reportButton: {
     backgroundColor: "#dc2626",
     borderRadius: 12,

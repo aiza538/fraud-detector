@@ -68,7 +68,13 @@ export default function AlertScreen() {
       setReported(true);
       setReportError(false);
       if (res?.status === "confirmed") syncRules();
-    } catch {
+    } catch (err: any) {
+      // Report sirf email-verified user kar sakta hai — verify screen kholo;
+      // wapas aa kar user dobara report dabata hai.
+      if (err?.code === "email_verification_required") {
+        router.push("/verify-email");
+        return;
+      }
       setReportError(true);
     }
   };
