@@ -88,7 +88,7 @@ class AuthTests(ApiTestCase):
         ("POST", "/v1/auth/refresh"), ("GET", "/v1/account"), ("DELETE", "/v1/account"),
         ("POST", "/v1/auth/email/start"), ("POST", "/v1/auth/email/verify"),
         ("POST", "/v1/analyze/text"), ("POST", "/v1/analyze/audio"),
-        ("POST", "/v1/check-number"), ("GET", "/v1/number-lists"),
+        ("POST", "/v1/check-number"), ("GET", "/v1/number-lists"), ("GET", "/v1/rules"),
         ("POST", "/v1/report-number"), ("POST", "/v1/admin/unreport-number"),
     ]
 
@@ -379,6 +379,41 @@ class NumberTests(ApiTestCase):
             r = self.call("POST", "/v1/admin/unreport-number", admin, json={"number": number})
             self.assertEqual(r.status_code, 404)
         self.assertNotIn("3099988877", self.call("GET", "/v1/number-lists", admin).get_json()["scam"])
+
+
+class SyncTests(ApiTestCase):
+    """Phone ka sync: rules aur number lists, sirf tab download jab kuch badla ho."""
+
+    def test_rules_are_served_with_a_version(self):
+        headers = self.signup()
+        r = self.call("GET", "/v1/rules", headers)
+        body = r.get_json()
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(body["schema"], 1)
+        self.assertEqual(len(body["rules"]), 6)
+        self.assertEqual(r.headers["ETag"], f'"{body["version"]}"')
+        self.assertFalse([k for k in body if k.startswith("_")], "documentation keys phone ko nahi jate")
+
+    def test_unchanged_rules_and_lists_return_304(self):
+        headers = self.signup()
+        for path in ("/v1/rules", "/v1/number-lists"):
+            first = self.call("GET", path, headers)
+            again = self.call("GET", path, {**headers, "If-None-Match": first.headers["ETag"]})
+            self.assertEqual((again.status_code, again.data), (304, b""), path)
+            stale = self.call("GET", path, {**headers, "If-None-Match": '"old-version"'})
+            self.assertEqual(stale.status_code, 200, path)
+        # 304 token ke baghair nahi milta
+        self.assertEqual(self.call("GET", "/v1/rules", {"If-None-Match": first.headers["ETag"]}).status_code, 401)
+
+    def test_number_list_version_changes_when_a_number_is_confirmed(self):
+        viewer = self.signup()
+        before = self.call("GET", "/v1/number-lists", viewer).headers["ETag"]
+        for n in range(1, config.REPORT_THRESHOLD + 1):
+            headers, ip = self.reporter(n)
+            self.call("POST", "/v1/report-number", headers, ip, json={"number": "03099988877"})
+        after = self.call("GET", "/v1/number-lists", {**viewer, "If-None-Match": before})
+        self.assertEqual(after.status_code, 200)
+        self.assertIn("3099988877", after.get_json()["scam"])
 
 
 class AnalyzeTests(ApiTestCase):
