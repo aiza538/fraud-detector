@@ -27,7 +27,7 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.READ_CONTACTS"
       ],
-      "package": "com.aiza68.FraudGuardExpo"
+      "package": "com.fraudguard.ai"
     },
     "web": {
       "output": "static",

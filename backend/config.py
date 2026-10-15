@@ -36,7 +36,7 @@ def _secret(name, dev_default):
     if IS_PRODUCTION:
         raise ConfigError(
             f"{name} set nahi hai (ya 32 characters se chhota hai). Production me "
-            f"ye secret zaroori hai — Space settings > Secrets me add karein."
+            f"ye secret zaroori hai — host (Render) ki Environment settings me add karein."
         )
     return value or dev_default
 
