@@ -40,4 +40,4 @@ jobs:
           python -m tests.test_number_screening
           python -m tests.test_group_messages
       - name: Detection accuracy, /v1 API and phone rules
-        run: python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_phone_rules
+        run: python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_phone_rules tests.test_mailer

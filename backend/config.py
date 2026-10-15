@@ -118,6 +118,11 @@ EMAIL_CODES_PER_IP_PER_HOUR = 10
 # Ek email address par rozana kitne codes. Har code par 5 guesses milte hain —
 # ye cap kisi aur ke email ka code guess karne (account takeover) ko rokta hai.
 EMAIL_CODES_PER_EMAIL_PER_DAY = 5
+# Email providers (mailer.py). Resend pehle, Brevo backup. MAIL_FROM domain par
+# verified address hona chahiye, jaise: FraudGuard AI <no-reply@yourdomain.com>
+MAIL_FROM = os.environ.get("MAIL_FROM", "").strip()
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "").strip()
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "").strip()
 # Throwaway inbox services — in par account verify nahi hota.
 DISPOSABLE_EMAIL_DOMAINS = frozenset({
     "mailinator.com", "guerrillamail.com", "guerrillamail.net", "sharklasers.com",
