@@ -257,7 +257,7 @@ python -m tests.test_group_messages
 python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_phone_rules
 ```
 
-**Production settings** (Hugging Face Space secrets). The server will not start without the first three:
+**Production settings** (Render → service → Environment). The server will not start without the first three:
 
 | Variable | Purpose |
 |---|---|
@@ -267,9 +267,11 @@ python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_ph
 | `ADMIN_EMAILS` | Comma-separated emails of admins |
 | `TRUSTED_PROXY_HOPS` | Number of proxies in front of the server (default `1` in production) |
 
-Create or update the database tables before starting a new version:
+Also set `APP_ENV=production` and `PYTHON_VERSION=3.12.10`.
+
+The live server runs on Render (free instance, Singapore) at `https://fraud-detector-kno0.onrender.com`, with root directory `backend`, build command `pip install -r requirements.txt`, and this start command, which updates the database tables before starting:
 ```bash
-alembic upgrade head
+alembic upgrade head && gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
 ```
 
 ### 2. Frontend (Web App & Chrome Extension)
@@ -291,7 +293,7 @@ npm install
 cp .env.example .env   # then set EXPO_PUBLIC_API_URL for your device
 npx expo start
 ```
-To test on a real phone with Expo Go, set `EXPO_PUBLIC_API_URL` in `.env` to your computer's Wi-Fi address (for example `http://192.168.1.100:5000`) and keep the phone on the same Wi-Fi.
+To test on a real phone with Expo Go, set `EXPO_PUBLIC_API_URL` in `.env` either to the live server (`https://fraud-detector-kno0.onrender.com`) or to your computer's address for a local server (for example `http://192.168.1.100:5000`, phone on the same network). Cloud builds (`eas.json` profiles `preview` and `production`) always use the live server.
 
 **Expo Go runs only part of the app.** The analyzer, number checker, email verification and account screens work there. Call screening and WhatsApp/SMS scanning are custom Android code, which Expo Go cannot load, so those features are switched off in it. Testing them needs a development build:
 ```bash

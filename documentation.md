@@ -353,6 +353,8 @@ Locally the server uses a SQLite file (`backend/fraudguard-dev.db`) and creates 
 
 | Variable | Purpose |
 | :--- | :--- |
+| `APP_ENV` | `production` on Render. |
+| `PYTHON_VERSION` | `3.12.10`, the version the tests run on. |
 | `DATABASE_URL` | Neon Postgres **pooled** connection string. |
 | `JWT_SECRET` | 32+ random characters. Signs tokens. |
 | `FRAUDGUARD_SALT` | 32+ random characters. Hashes IPs and emails. |
@@ -360,15 +362,19 @@ Locally the server uses a SQLite file (`backend/fraudguard-dev.db`) and creates 
 | `TRUSTED_PROXY_HOPS` | Proxies in front of the server. |
 | `GEMINI_API_KEY`, `ASSEMBLYAI_API_KEY` | As before. |
 
-**Deployment status: not deployed.** The live Hugging Face Space still runs the old code and has no `/v1`. Since the mobile app now needs `/v1`, the app only works against a server running the new code (locally, for now). To deploy: set the secrets above on the Space, run `alembic upgrade head`, then update the Space's code.
+**Deployment: live on Render** at `https://fraud-detector-kno0.onrender.com` (free instance, Singapore, Neon Postgres), deployed 15 October 2026. The Hugging Face Space was dropped because its free plan cannot add collaborators.
 
-The Postgres path has been checked only by generating its SQL; it has not yet run against a real Neon database.
+* Root directory `backend`; build `pip install -r requirements.txt`; start `alembic upgrade head && gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120`. Running the migration in the start command is how the free plan does it.
+* First check on the live server: sign-up, account read, number check, rule engine, number lists and rules each answered in about 0.2–0.35 seconds. An unchanged number list came back as an empty `304`. Delete account worked, so the tables exist in Neon.
+* The free instance sleeps after 15 minutes without traffic and takes about a minute to wake. An uptime monitor pinging `/` every 10 minutes keeps it awake. Move to the Starter plan (about $7/month) at public launch.
+* **To confirm:** how many proxies Render puts in front of the app. Each new account logs one line, `signup network=<hash> forwarded_entries=<n>` (hashed, never the raw IP). If `n` is 2 for a client that sent no header, set `TRUSTED_PROXY_HOPS=2`; otherwise every user would share one network and the per-network limits would apply to everyone at once.
 
 ---
 
 ## 12. Mobile App Changes
 
-* **App name** is now FraudGuard AI (`app.json` and the home screen). The package ID is still `com.aiza68.FraudGuardExpo` and must be finalised before the first Play upload.
+* **App name** is FraudGuard AI (`app.json` and the home screen). **Package ID** is `com.fraudguard.ai`, confirmed by the team.
+* **Cloud builds**: `eas.json` points the `preview` and `production` profiles at the live server. `preview` produces an installable APK for testers.
 * **[session.js](FraudGuardExpo/src/services/session.js)** and **[api.js](FraudGuardExpo/src/services/api.js)**: token handling and the single `/v1` client. Server error messages (for example a daily limit) are shown to the user.
 * **[app/verify-email.tsx](FraudGuardExpo/app/verify-email.tsx)**: opens when an unverified user taps Report. After verifying, the user taps Report again.
 * **[app/account.tsx](FraudGuardExpo/app/account.tsx)**: reached from the 👤 icon on the home screen. Shows verified status and deletes the account, the user's reports and the phone's alert history.
@@ -384,8 +390,8 @@ The Postgres path has been checked only by generating its SQL; it has not yet ru
 
 | Item | Waiting on |
 | :--- | :--- |
-| Deploy the new server | Access to the Hugging Face Space, a Neon database, the three secrets |
-| Send real email codes | A domain the team owns, Resend and Brevo accounts |
+| Confirm the proxy setting on Render (`TRUSTED_PROXY_HOPS`) | One sign-up after this change is deployed, and reading its log line |
+| Send real email codes | The domain (arriving), with Resend and Brevo verified on it |
 | Kotlin scanner reads the downloaded rules | A development build to test on (needs access to the Expo account) |
 | Switch call detection to Android's Call Screening API | A development build to test on |
 | Genuine-phone check (Play Integrity) before reports count | A Google Play developer account |
@@ -393,7 +399,6 @@ The Postgres path has been checked only by generating its SQL; it has not yet ru
 | User-facing appeal route | A support contact and named admins |
 | Onboarding screens that explain each permission | Nothing; not started |
 | Privacy policy | Team |
-| Final package ID | Team decision |
 | iOS app, web dashboard, browser extension | Deferred by the team |
 
 **Change log** (all merged into `dev`):
@@ -404,3 +409,5 @@ The Postgres path has been checked only by generating its SQL; it has not yet ru
 | #8 `3-Server_Foundations` | `/v1` API, tokens, email codes, database with migrations, limits, admin-only removal, CI. |
 | #9 `4-Rules_Sync` | `phone_rules.json`, `GET /v1/rules`, `ETag` change detection, everyday-message test. |
 | #10 `5-App_On_V1` | Mobile app on `/v1`: token client, email verification screen, account screen, rename to FraudGuard AI. |
+| #11 `6-Docs_Update` | This document brought up to date. |
+| `7-Live_Server` | Server live on Render; package ID `com.fraudguard.ai`; cloud builds point at the live server; sign-up log line for the proxy check. |

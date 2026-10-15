@@ -6,6 +6,7 @@ par shift nahi hoti; uske baad wo delete honge.
 import hashlib
 import hmac
 import json
+import logging
 import os
 import secrets
 import tempfile
@@ -90,6 +91,14 @@ def auth_anonymous():
     user = User(id=uuid.uuid4().hex, created_at=now, signup_ip_hash=ip_hash)
     session.add(user)
     session.commit()
+    # Har naye account par ek line: network ka hash (raw IP kabhi nahi) aur
+    # proxy header me kitne addresses aaye. Isi se pata chalta hai ke
+    # TRUSTED_PROXY_HOPS host ke hisaab se sahi hai — ghalat ho to sab users ek
+    # hi network lagte hain aur per-network limits sab par ek saath lagti hain.
+    forwarded = (request.environ.get("werkzeug.proxy_fix.orig", {}).get("HTTP_X_FORWARDED_FOR")
+                 or request.headers.get("X-Forwarded-For", ""))
+    logging.info("signup network=%s forwarded_entries=%d", ip_hash[:8],
+                 len([p for p in forwarded.split(",") if p.strip()]))
     return jsonify(_session_payload(user)), 201
 
 
