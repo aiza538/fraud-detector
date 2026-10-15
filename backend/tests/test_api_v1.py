@@ -256,6 +256,14 @@ class EmailCodeTests(ApiTestCase):
             self.assertEqual(r.get_json()["error"], error, email)
         self.assertEqual(self.sent, [])
 
+    def test_failed_send_leaves_no_usable_code(self):
+        headers = self.signup()
+        with mock.patch.object(mailer, "send_login_code", side_effect=RuntimeError("down")):
+            r = self.call("POST", "/v1/auth/email/start", headers, json={"email": "u@example.com"})
+        self.assertEqual((r.status_code, r.get_json()["error"]), (502, "email_failed"))
+        with db.SessionLocal() as s:
+            self.assertIsNone(s.get(db.EmailChallenge, self.user_id(headers)))
+
     def test_production_without_provider_is_unavailable_and_never_logs_codes(self):
         headers = self.signup()
         with mock.patch.object(config, "IS_PRODUCTION", True):

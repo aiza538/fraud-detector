@@ -229,6 +229,7 @@ All automated test suites pass without regressions:
 * **Pattern Matching Tests** (46 test cases): Validated that normal conversation messages, legitimate bank OTP SMS alerts, and telecom recharge receipts remain silent, while domestic Pakistani scams (Roman Urdu & Urdu script) and global cross-border threats (Crypto drainers, DHL/FedEx holds, Apple ID lockouts) are reliably flagged with statutory PECA citations.
 * **Group Chat & Context Screening Tests** (16 test cases): Group link suppression and 1:1 threat identification verified.
 * **`/v1` API Tests** (36 test cases, [backend/tests/test_api_v1.py](backend/tests/test_api_v1.py)): every route refuses requests without a token; forged, expired, blocked and revoked tokens are rejected; signup, daily, per-network and per-email limits hold; the email-code flow (wrong code lockout, expiry, account restore); report consensus rules; admin-only removal; delete account; `ETag`/`304` behaviour; the legacy routes still work; production refuses to start without secrets; the migration builds exactly the tables the code expects.
+* **Email Sending Tests** (6 test cases, [backend/tests/test_mailer.py](backend/tests/test_mailer.py)): Resend first, Brevo when Resend fails, an error when both fail, switched off in production without a sender or keys, and no code or email address in failure logs.
 * **Phone Rules Tests** (4 test cases, [backend/tests/test_phone_rules.py](backend/tests/test_phone_rules.py)): the server rule file matches the rules compiled into the app; every rule is well formed; 19 ordinary everyday messages raise no alert.
 * **Continuous integration**: [.github/workflows/backend-tests.yml](.github/workflows/backend-tests.yml) runs all suites on every pull request that touches `backend/` or the Android module.
 
@@ -237,7 +238,7 @@ Run everything from `backend/`:
 python -m tests.test_pattern_matcher
 python -m tests.test_number_screening
 python -m tests.test_group_messages
-python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_phone_rules
+python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_phone_rules tests.test_mailer
 ```
 
 ---
@@ -278,7 +279,8 @@ Implemented in [backend/security.py](backend/security.py) and [backend/api_v1.py
   - Throwaway email domains are refused.
   - Verifying an email that already belongs to an account signs the user into that account (new phone or reinstall). A verified account is never merged away.
 * **Admins** are the verified accounts whose email is listed in `ADMIN_EMAILS`.
-* **Email delivery is not connected yet.** In development the code is printed in the server log ([backend/mailer.py](backend/mailer.py)). In production the feature answers `503` until a real provider (Resend, with Brevo as backup) is added, so codes are never written to production logs.
+* **Email delivery** ([backend/mailer.py](backend/mailer.py)): Resend is tried first and Brevo takes over if it fails, using each provider's HTTP API (no extra package). It switches on when `MAIL_FROM` and at least one key are set. Without them, development prints the code in the server log, and production answers `503`, so codes never reach production logs. Failure logs name the provider but never the code or the user's email.
+* **The email text** is bilingual and itself follows the app's advice: it tells the user never to share the code and that FraudGuard never asks for it by call or message.
 
 ---
 
@@ -359,7 +361,9 @@ Locally the server uses a SQLite file (`backend/fraudguard-dev.db`) and creates 
 | `JWT_SECRET` | 32+ random characters. Signs tokens. |
 | `FRAUDGUARD_SALT` | 32+ random characters. Hashes IPs and emails. |
 | `ADMIN_EMAILS` | Comma-separated admin emails. |
-| `TRUSTED_PROXY_HOPS` | Proxies in front of the server. |
+| `MAIL_FROM` | Sender on the verified domain, e.g. `FraudGuard AI <no-reply@yourdomain.com>`. |
+| `RESEND_API_KEY`, `BREVO_API_KEY` | Email providers; Resend first, Brevo as backup. |
+| `TRUSTED_PROXY_HOPS` | Proxies in front of the server: **3 on Render** (confirmed). |
 | `GEMINI_API_KEY`, `ASSEMBLYAI_API_KEY` | As before. |
 
 **Deployment: live on Render** at `https://fraud-detector-kno0.onrender.com` (free instance, Singapore, Neon Postgres), deployed 15 October 2026. The Hugging Face Space was dropped because its free plan cannot add collaborators.
@@ -367,7 +371,7 @@ Locally the server uses a SQLite file (`backend/fraudguard-dev.db`) and creates 
 * Root directory `backend`; build `pip install -r requirements.txt`; start `alembic upgrade head && gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120`. Running the migration in the start command is how the free plan does it.
 * First check on the live server: sign-up, account read, number check, rule engine, number lists and rules each answered in about 0.2–0.35 seconds. An unchanged number list came back as an empty `304`. Delete account worked, so the tables exist in Neon.
 * The free instance sleeps after 15 minutes without traffic and takes about a minute to wake. An uptime monitor pinging `/` every 10 minutes keeps it awake. Move to the Starter plan (about $7/month) at public launch.
-* **To confirm:** how many proxies Render puts in front of the app. Each new account logs one line, `signup network=<hash> forwarded_entries=<n>` (hashed, never the raw IP). If `n` is 2 for a client that sent no header, set `TRUSTED_PROXY_HOPS=2`; otherwise every user would share one network and the per-network limits would apply to everyone at once.
+* **Proxy setting confirmed: `TRUSTED_PROXY_HOPS=3` on Render.** Each new account logs `signup network=<hash> forwarded_entries=<n>` (hashed, never the raw IP). With the default of 1, two sign-ups from the same laptop got different network IDs, because the server was reading the address of whichever Render machine passed the request on. With 3, three sign-ups from one laptop got the same ID, including one that sent a fake `X-Forwarded-For` (`forwarded_entries=4`), so the fake address is ignored. If Render ever changes its proxy chain, this log line is how to re-check.
 
 ---
 
@@ -390,8 +394,7 @@ Locally the server uses a SQLite file (`backend/fraudguard-dev.db`) and creates 
 
 | Item | Waiting on |
 | :--- | :--- |
-| Confirm the proxy setting on Render (`TRUSTED_PROXY_HOPS`) | One sign-up after this change is deployed, and reading its log line |
-| Send real email codes | The domain (arriving), with Resend and Brevo verified on it |
+| Send real email codes | Code done. Waiting on the domain verified in Resend and Brevo, then `MAIL_FROM` and the two keys set on Render |
 | Kotlin scanner reads the downloaded rules | A development build to test on (needs access to the Expo account) |
 | Switch call detection to Android's Call Screening API | A development build to test on |
 | Genuine-phone check (Play Integrity) before reports count | A Google Play developer account |
@@ -411,3 +414,4 @@ Locally the server uses a SQLite file (`backend/fraudguard-dev.db`) and creates 
 | #10 `5-App_On_V1` | Mobile app on `/v1`: token client, email verification screen, account screen, rename to FraudGuard AI. |
 | #11 `6-Docs_Update` | This document brought up to date. |
 | `7-Live_Server` | Server live on Render; package ID `com.fraudguard.ai`; cloud builds point at the live server; sign-up log line for the proxy check. |
+| `8-Email_Sending` | Real email codes through Resend with Brevo as backup (switched on by settings); proxy setting confirmed as 3 on Render. |

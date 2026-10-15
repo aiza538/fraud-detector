@@ -254,7 +254,7 @@ Run the tests (from `backend/`):
 python -m tests.test_pattern_matcher
 python -m tests.test_number_screening
 python -m tests.test_group_messages
-python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_phone_rules
+python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_phone_rules tests.test_mailer
 ```
 
 **Production settings** (Render → service → Environment). The server will not start without the first three:
@@ -265,7 +265,9 @@ python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_ph
 | `JWT_SECRET` | Random string, 32+ characters. Signs user tokens |
 | `FRAUDGUARD_SALT` | Random string, 32+ characters. Hashes IPs and emails |
 | `ADMIN_EMAILS` | Comma-separated emails of admins |
-| `TRUSTED_PROXY_HOPS` | Number of proxies in front of the server (default `1` in production) |
+| `MAIL_FROM` | Sender for email codes, on the verified domain, e.g. `FraudGuard AI <no-reply@yourdomain.com>` |
+| `RESEND_API_KEY`, `BREVO_API_KEY` | Email providers. Resend is tried first, Brevo if it fails. Without a sender and at least one key, email verification stays off in production |
+| `TRUSTED_PROXY_HOPS` | Number of proxies in front of the server. **Must be `3` on Render**; the default of `1` makes every request look like it came from Render's own machines |
 
 Also set `APP_ENV=production` and `PYTHON_VERSION=3.12.10`.
 
