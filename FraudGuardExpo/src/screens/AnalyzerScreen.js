@@ -2,8 +2,6 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  PermissionsAndroid,
-  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -27,15 +25,6 @@ export default function AnalyzerScreen() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
-
-  // Android 13+ pe fraud alerts dikhane ke liye notification permission zaroori
-  useEffect(() => {
-    if (Platform.OS === "android" && Platform.Version >= 33) {
-      PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-      );
-    }
-  }, []);
 
   useEffect(() => {
     if (toast) {
@@ -149,7 +138,7 @@ export default function AnalyzerScreen() {
             onAnalyze={(text) => handleAnalyze(text, "whatsapp")}
             loading={loading}
             title="WhatsApp Chat Check"
-            subtitle="Chat ka text select → copy → yahan paste karein"
+            subtitle="Select the chat text, copy it, and paste it here"
             placeholder={
               'Paste WhatsApp message / chat here...\n\nCommon scams: "account 24 hour mein band", verification code mangna, daily profit trading group, dost ki emergency'
             }

@@ -94,16 +94,16 @@ def issue_token(user):
 def _authenticate():
     scheme, _, token = request.headers.get("Authorization", "").partition(" ")
     if scheme.lower() != "bearer" or not token.strip():
-        raise ApiError(401, "unauthorized", "Token missing hai.")
+        raise ApiError(401, "unauthorized", "Missing token.")
     try:
         # algorithms pinned — "none" ya kisi aur algorithm ka token reject.
         claims = jwt.decode(token.strip(), config.JWT_SECRET, algorithms=["HS256"],
                             options={"require": ["sub", "ver", "exp"]})
     except jwt.PyJWTError:
-        raise ApiError(401, "invalid_token", "Token invalid ya expire ho chuka hai.")
+        raise ApiError(401, "invalid_token", "The token is invalid or has expired.")
     user = get_session().get(User, claims["sub"])
     if user is None or user.blocked or user.token_version != claims["ver"]:
-        raise ApiError(401, "invalid_token", "Token invalid ya expire ho chuka hai.")
+        raise ApiError(401, "invalid_token", "The token is invalid or has expired.")
     return user
 
 
@@ -146,4 +146,4 @@ def consume_quota(subject, kind, limit):
         except IntegrityError:
             session.rollback()  # doosri request ne row bana di — dobara UPDATE
     raise ApiError(429, "daily_limit",
-                   "Aaj ki limit poori ho gayi hai. Kal dobara koshish karein.")
+                   "You have reached today's limit. Please try again tomorrow.")

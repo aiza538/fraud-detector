@@ -1,25 +1,23 @@
 // src/services/callMonitor.js
 // Android native monitoring ko JS se bridge karta hai:
 // rules sync (backend se) + call/message events ko alert history mein save.
-import { Platform, PermissionsAndroid, Alert } from "react-native";
-import { getNumberLists } from "./api";
+import { Platform } from "react-native";
+import { getNumberLists, getRules } from "./api";
 import { updateCallerDirectory } from "./CallerIDService";
 import {
   isCallGuardAvailable,
   setNativeRules,
-  refreshContactCache,
-  hasContactsPermission,
+  setTextRules,
+  getTextRulesVersion,
   addCallDetectedListener,
   addMessageDetectedListener,
-  hasNotificationAccess,
-  requestNotificationAccess,
 } from "../../modules/expo-call-guard";
 import { saveAlert } from "./fraudAlerts";
 
 const CALL_MESSAGES = {
-  scam: "Impersonation ya community-reported scam number. Bank/sarkari idare apna aam number chhupa kar call nahi karte.",
+  scam: "Impersonation or community-reported scam number. Banks and government offices do not call from hidden or look-alike numbers.",
   suspicious:
-    "Unverified UAN-style number — scammers official-looking bank numbers spoof kar sakte hain. OTP ya paisa maange to block karein.",
+    "Unverified UAN-style number — scammers fake official-looking bank numbers. If they ask for an OTP or money, block them.",
 };
 
 // Unknown number = "pata nahi", scam nahi. Is par koi alert history entry
@@ -44,55 +42,29 @@ export async function syncRules() {
     // "suspicious" bana deta tha. Ab unknown pe koi alert nahi hota, is liye
     // stale rules se sirf verified banks ka naam hi stale reh sakta hai.
   }
-}
-
-async function ensureContactsPermission() {
-  if (!isCallGuardAvailable()) return false;
-  const already = hasContactsPermission();
-  if (already) return true;
-  const res = await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
-  );
-  const granted = res === PermissionsAndroid.RESULTS.GRANTED;
-  if (granted) {
-    // Native cache turant refresh karo warna pehla lookup "denied" cache
-    // kar lega aur poori app lifetime tak har saved contact unknown lagega.
-    await refreshContactCache();
+  try {
+    // WhatsApp/SMS scanner ki rules — sirf tab download jab server par nayi
+    // version ho (warna server khali 304 bhejta hai).
+    const rules = await getRules(getTextRulesVersion());
+    if (rules) {
+      const applied = await setTextRules(JSON.stringify(rules));
+      if (__DEV__) console.log(`[rules] version ${rules.version} applied: ${applied}`);
+    } else if (__DEV__) {
+      console.log("[rules] unchanged (server sent 304)");
+    }
+  } catch {
+    // Offline — phone par pehle se lagi rules (ya app ki apni copy) chalti rahengi.
   }
-  return granted;
 }
 
 export async function startCallMonitor() {
   if (Platform.OS !== "android") return () => {};
   if (!isCallGuardAvailable()) return () => {};
 
-  await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
-  );
-  // Caller number read karne ke liye (Android 9+)
-  await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.READ_CALL_LOG ?? "android.permission.READ_CALL_LOG",
-  );
-  // Saved contacts detect karne ke liye — bina iske saved logon ke numbers
-  // "unknown" samajh ke alert hote thay.
-  const contactsGranted = await ensureContactsPermission();
-  if (!contactsGranted) {
-    // Bina READ_CONTACTS ke saved-contact detection kaam nahi karta. Text wale
-    // rules phir bhi chalti hain, magar number-level alerts chup ho jate hain —
-    // ye user ko batana zaroori hai warna "app kaam nahi kar raha" lagega.
-    Alert.alert(
-      "Contacts permission nahi mili",
-      "Bina contacts ke FraudGuard saved numbers pehchan nahi kar pata, is liye unknown numbers par alert nahi aayenge. Settings → App permissions → Contacts → Allow karein.",
-    );
-  }
-
+  // Permissions yahan nahi maangi jatin — welcome screen (app/welcome.tsx)
+  // har ek se pehle wajah batakar maangti hai. Yahan sirf rules sync aur
+  // native events sunna.
   await syncRules();
-
-  // WhatsApp/SMS/Telegram incoming scanner native notification listener se
-  // chalta hai — uske liye notification access zaroori hai
-  if (!hasNotificationAccess()) {
-    await requestNotificationAccess();
-  }
 
   const callSub = addCallDetectedListener(
     ({ number, status, source, alerted }) => {

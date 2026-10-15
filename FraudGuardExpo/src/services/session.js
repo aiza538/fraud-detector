@@ -2,8 +2,7 @@
 // App ka apna token — koi login screen nahi. Pehli request par server ek
 // anonymous account banata hai; token phone ki secure storage (Android
 // Keystore) me rehta hai aur har request ke saath jata hai.
-import { Platform } from "react-native";
-import * as SecureStore from "expo-secure-store";
+import { storage } from "./storage";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL;
 const KEY = "fraudguard.session";
@@ -11,27 +10,13 @@ const KEY = "fraudguard.session";
 // rozana use karne wale ka account kabhi expire na ho.
 const REFRESH_WINDOW_SECONDS = 7 * 86400;
 
-// expo-secure-store web par nahi chalta — wahan (sirf development) localStorage.
-const storage =
-  Platform.OS === "web"
-    ? {
-        get: async () => globalThis.localStorage?.getItem(KEY) ?? null,
-        set: async (value) => globalThis.localStorage?.setItem(KEY, value),
-        remove: async () => globalThis.localStorage?.removeItem(KEY),
-      }
-    : {
-        get: () => SecureStore.getItemAsync(KEY),
-        set: (value) => SecureStore.setItemAsync(KEY, value),
-        remove: () => SecureStore.deleteItemAsync(KEY),
-      };
-
 let session; // undefined = abhi storage se parha nahi; null = koi session nahi
 let pending = null; // ek waqt me ek hi signup/refresh, chahe 3 requests saath aayein
 
 async function load() {
   if (session === undefined) {
     try {
-      const raw = await storage.get();
+      const raw = await storage.get(KEY);
       session = raw ? JSON.parse(raw) : null;
     } catch {
       session = null;
@@ -44,7 +29,7 @@ async function load() {
 export async function saveSession(next) {
   session = next;
   try {
-    await storage.set(JSON.stringify(next));
+    await storage.set(KEY, JSON.stringify(next));
   } catch {
     // Storage fail ho to bhi app chalti rahe — token is run ke liye memory me hai.
   }
@@ -53,7 +38,7 @@ export async function saveSession(next) {
 export async function clearSession() {
   session = null;
   try {
-    await storage.remove();
+    await storage.remove(KEY);
   } catch {
     /* ignore */
   }

@@ -9,10 +9,24 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import * as Linking from "expo-linking";
 import { checkNumber, reportNumber } from "../services/api";
 import { checkCallerID } from "../services/CallerIDService";
 import { checkContact } from "../../modules/expo-call-guard";
 import { syncRules } from "../services/callMonitor";
+
+// Wrongly reported number ka owner yahan removal maangta hai. Team ise
+// expo.dev par EXPO_PUBLIC_SUPPORT_EMAIL ke naam se set karti hai; set na ho to
+// button nahi dikhta.
+const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL;
+
+function appealLink(number) {
+  const subject = `Removal request: ${number}`;
+  const body =
+    `My number ${number} is marked as a scam in FraudGuard AI, but it belongs to me. ` +
+    "Please review it.\n\nMy name:\nWhy this number is mine:\n";
+  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
 
 // UNKNOWN = "kisi list me nahi, koi signal nahi". Grey label + koi red
 // "suspicious" warning nahi. Pehle unknown bhi amber "SUSPICIOUS" dikhata
@@ -55,7 +69,7 @@ function localCheck(rawNumber) {
       offline: true,
     };
   }
-  return { status: "unknown", message: "Koi list me nahi — koi alert nahi.", confidence: "low", offline: true };
+  return { status: "unknown", message: "Not on any list — no alert.", confidence: "low", offline: true };
 }
 
 export default function NumberChecker({ onToast }) {
@@ -69,7 +83,7 @@ export default function NumberChecker({ onToast }) {
   const handleCheck = async () => {
     const trimmed = number.trim();
     if (!trimmed) {
-      onToast?.("Number type karein", "error");
+      onToast?.("Please enter a number", "error");
       return;
     }
     setLoading(true);
@@ -113,23 +127,32 @@ export default function NumberChecker({ onToast }) {
       if (res.status === "confirmed") {
         setResult((r) => ({ ...r, status: "scam", report_count: res.report_count }));
         syncRules();
-        onToast?.("Ye number ab scam-confirmed hai.", "success");
+        onToast?.("This number is now confirmed as a scam.", "success");
       } else {
-        onToast?.(res.message || "Report darj ho gaya.", "info");
+        onToast?.(res.message || "Report recorded.", "info");
       }
     } catch (err) {
       // Report sirf email-verified user kar sakta hai — verify screen kholo;
       // wapas aa kar user dobara Report dabata hai.
       if (err.code === "email_verification_required") {
-        onToast?.("Report karne ke liye pehle email verify karein.", "info");
+        onToast?.("Please verify your email before reporting.", "info");
         router.push("/verify-email");
         return;
       }
       // Backend verified number par report reject karta hai (400) — user ko
       // clear message dikhana zaroori hai warna "silently kuch nahi hua".
-      onToast?.(err.message || "Report nahi ho saka — dobara try karein.", "error");
+      onToast?.(err.message || "Could not send the report. Please try again.", "error");
     } finally {
       setReporting(false);
+    }
+  };
+
+  // Appeal sirf community reports par — spoof (lookalike) verdict kisi report se nahi aata.
+  const handleAppeal = async () => {
+    try {
+      await Linking.openURL(appealLink(result.rawNumber));
+    } catch {
+      onToast?.(`Please email ${SUPPORT_EMAIL} to request a review.`, "info");
     }
   };
 
@@ -145,8 +168,8 @@ export default function NumberChecker({ onToast }) {
     <View style={styles.card}>
       <Text style={styles.title}>📞 Phone Number Check</Text>
       <Text style={styles.hint}>
-        Kisi bhi number ko bank/authority ban ke call aa rahi ho to yahan
-        verify karein.
+        If someone calls pretending to be a bank or an authority, check
+        their number here.
       </Text>
 
       <View style={styles.inputRow}>
@@ -154,7 +177,7 @@ export default function NumberChecker({ onToast }) {
           style={styles.input}
           value={number}
           onChangeText={setNumber}
-          placeholder="e.g. 0300-1234567 ya 111-111-425"
+          placeholder="e.g. 0300-1234567 or 111-111-425"
           placeholderTextColor="#9ca3af"
           keyboardType="phone-pad"
           autoCapitalize="none"
@@ -181,7 +204,7 @@ export default function NumberChecker({ onToast }) {
             <Text style={[styles.entityText, { color: style.color }]}>
               {result.status === "safe"
                 ? `🏦 ${result.entity} — Official helpline`
-                : `🎭 ${result.entity} ka spoof/impersonation`}
+                : `🎭 Impersonating ${result.entity}`}
             </Text>
           )}
           <Text style={styles.message}>{result.message}</Text>
@@ -211,7 +234,7 @@ export default function NumberChecker({ onToast }) {
             <ActivityIndicator color="#fff" size="small" />
           ) : (
             <Text style={styles.reportButtonText}>
-              {reported ? "✓ Report darj ho gayi" : "🚩 Report as Scam"}
+              {reported ? "✓ Report recorded" : "🚩 Report as Scam"}
             </Text>
           )}
         </TouchableOpacity>
@@ -219,10 +242,16 @@ export default function NumberChecker({ onToast }) {
 
       {reported && (
         <Text style={styles.consensusNote}>
-          Community block tab banta hai jab {5} alag users report karein — ek
-          report se kisi number par alert nahi aata, warna ek galti se number
-          block ho jata.
+          A number is blocked for everyone only after {5} different users
+          report it. One report alone never triggers an alert, so a single
+          mistake cannot block a number.
         </Text>
+      )}
+
+      {SUPPORT_EMAIL && result?.status === "scam" && result.source === "community" && (
+        <TouchableOpacity style={styles.appealButton} onPress={handleAppeal}>
+          <Text style={styles.appealText}>This is my number — request removal</Text>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -272,6 +301,15 @@ const styles = StyleSheet.create({
   provenance: { fontSize: 11, color: "#991b1b", marginTop: 8, fontWeight: "600" },
   confidence: { fontSize: 11, color: "#6b7280", marginTop: 8 },
   consensusNote: { fontSize: 11, color: "#6b7280", marginTop: 8, lineHeight: 16 },
+  appealButton: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: "center",
+  },
+  appealText: { color: "#475569", fontSize: 13, fontWeight: "600" },
   reportButton: {
     backgroundColor: "#dc2626",
     borderRadius: 12,

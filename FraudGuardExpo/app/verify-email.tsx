@@ -30,7 +30,7 @@ export default function VerifyEmailScreen() {
       await action();
     } catch (err: any) {
       // Server ke messages (galat code, thora intezar, limit) seedhe dikhao.
-      setError(err?.message || "Kuch ghalat ho gaya — dobara try karein.");
+      setError(err?.message || "Something went wrong. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -41,7 +41,7 @@ export default function VerifyEmailScreen() {
       await requestEmailCode(email.trim());
       setCode("");
       setStep("code");
-      if (resend) setNotice("Naya code bhej diya gaya hai.");
+      if (resend) setNotice("A new code has been sent.");
     });
 
   const confirmCode = () =>
@@ -56,7 +56,7 @@ export default function VerifyEmailScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.back}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Email Verify Karein</Text>
+        <Text style={styles.title}>Verify Your Email</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -66,19 +66,18 @@ export default function VerifyEmailScreen() {
         {step === "email" && (
           <View style={styles.card}>
             <Text style={styles.text}>
-              Number report karne ke liye ek baar email verify karna zaroori
-              hai — taake koi jhooti reports se kisi ka number block na karwa
-              sake.
+              To report a number, you need to verify an email once. This stops
+              anyone from getting a real number blocked with fake reports.
             </Text>
             <Text style={styles.small}>
-              Aapka email hamare paas save nahi hota — sirf uska scrambled
-              roop, jis se email wapas nahi nikala ja sakta.
+              We never store your email address, only a scrambled form of it
+              that cannot be turned back into the address.
             </Text>
             <TextInput
               style={styles.input}
               value={email}
               onChangeText={setEmail}
-              placeholder="aap@example.com"
+              placeholder="you@example.com"
               placeholderTextColor="#9ca3af"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -93,7 +92,7 @@ export default function VerifyEmailScreen() {
               {busy ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.buttonText}>Code bhejein</Text>
+                <Text style={styles.buttonText}>Send code</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -102,8 +101,8 @@ export default function VerifyEmailScreen() {
         {step === "code" && (
           <View style={styles.card}>
             <Text style={styles.text}>
-              6-digit code {email.trim()} par bheja gaya hai. Ye 10 minute tak
-              valid hai.
+              We sent a 6-digit code to {email.trim()}. It is valid for 10
+              minutes.
             </Text>
             <TextInput
               style={[styles.input, styles.codeInput]}
@@ -127,10 +126,10 @@ export default function VerifyEmailScreen() {
               )}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => sendCode(true)} disabled={busy}>
-              <Text style={styles.link}>Naya code bhejein</Text>
+              <Text style={styles.link}>Send a new code</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setStep("email")} disabled={busy}>
-              <Text style={styles.link}>Email badlein</Text>
+              <Text style={styles.link}>Change email</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -138,13 +137,13 @@ export default function VerifyEmailScreen() {
         {step === "done" && (
           <View style={styles.card}>
             <Text style={styles.doneEmoji}>✅</Text>
-            <Text style={styles.doneTitle}>Email verify ho gaya</Text>
+            <Text style={styles.doneTitle}>Email verified</Text>
             <Text style={styles.text}>
-              Ab aap scam numbers report kar sakte hain. Naye verified account
-              ki reports 48 ghante baad ginti me aati hain.
+              You can now report scam numbers. Reports from a newly verified
+              account start counting after 48 hours.
             </Text>
             <TouchableOpacity style={styles.button} onPress={() => router.back()}>
-              <Text style={styles.buttonText}>Wapas jayein</Text>
+              <Text style={styles.buttonText}>Go back</Text>
             </TouchableOpacity>
           </View>
         )}

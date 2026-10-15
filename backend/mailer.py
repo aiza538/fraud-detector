@@ -35,12 +35,10 @@ def _message(code):
     minutes = config.EMAIL_CODE_TTL_SECONDS // 60
     subject = f"FraudGuard AI code: {code}"
     text = (
-        f"Aapka FraudGuard AI verification code: {code}\n\n"
-        f"Ye code {minutes} minute tak valid hai.\n"
-        "Ye code kisi ko na batayein — FraudGuard kabhi call ya message par ye code nahi maangta.\n\n"
-        f"Your FraudGuard AI verification code is {code}. It is valid for {minutes} minutes. "
-        "Do not share it with anyone.\n\n"
-        "Agar aap ne ye code nahi manga, to is email ko ignore kar dein."
+        f"Your FraudGuard AI verification code is {code}.\n\n"
+        f"It is valid for {minutes} minutes. Do not share it with anyone — FraudGuard "
+        "will never ask for this code by call or message.\n\n"
+        "If you did not ask for this code, you can ignore this email."
     )
     return subject, text
 

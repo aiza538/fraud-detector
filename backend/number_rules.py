@@ -231,7 +231,7 @@ def screen_number(raw_number, is_saved, scam_info):
     # Guard 4 digit ka hai, 7 ka nahi — NADRA "1700", FIA "1717" jaise SHORT
     # CODES bhi verified official numbers hain.
     if not cleaned or len(cleaned) < 4 or not cleaned.isdigit():
-        return {"status": "unknown", "message": "Number valid nahi hai.", "confidence": "low"}
+        return {"status": "unknown", "message": "This is not a valid number.", "confidence": "low"}
 
     # prefixed caller IDs (021-111-...) ko bare UAN tak laao, phir dono check karo
     keys = lookup_keys(cleaned)
@@ -241,10 +241,10 @@ def screen_number(raw_number, is_saved, scam_info):
     scam = scam_info(keys)
     if scam:
         if scam["source"] == "community":
-            message = (f"{scam['report_count']} users ne is number ko fraudulent report kiya hai. "
-                       f"(Kam se kam {REPORT_THRESHOLD} chahiye — ye threshold cross kar chuka hai.)")
+            message = (f"{scam['report_count']} users have reported this number as fraudulent "
+                       f"(at least {REPORT_THRESHOLD} reports are needed, and it has crossed that).")
         else:
-            message = "FIA/verified record ke mutabiq scam number."
+            message = "Listed as a scam number in an FIA or other official record."
         return {"status": "scam", "source": scam["source"],
                 "report_count": scam["report_count"], "message": message,
                 "confidence": "high"}
@@ -253,13 +253,13 @@ def screen_number(raw_number, is_saved, scam_info):
     entity = next((ALL_LEGITIMATE[k] for k in keys if k in ALL_LEGITIMATE), None)
     if entity:
         return {"status": "safe", "entity": entity,
-                "message": f"Verified official number — {entity} ki official helpline.",
+                "message": f"Verified official number — {entity}'s official helpline.",
                 "confidence": "high"}
 
     # 3) Saved contact — "suspicious" kabhi nahi, warna har dost alert karta.
     if is_saved:
         return {"status": "safe", "entity": "Saved contact",
-                "message": "Aapke phonebook me saved hai.", "confidence": "high"}
+                "message": "This number is saved in your contacts.", "confidence": "high"}
 
     # 4) Spoofed official number (edit distance <= 2 of a verified UAN)
     spoofed = next((e for e in map(find_spoof_target, keys) if e), None)
@@ -281,6 +281,6 @@ def screen_number(raw_number, is_saved, scam_info):
 
     # 6) Baqi sab — personal mobiles, landlines, short codes — "unknown".
     return {"status": "unknown",
-            "message": ("Number kisi bhi list me nahi, aur aapke phonebook me bhi nahi. "
-                        "Koi alert ki zarurat nahi — sirf OTP ya paisa maange to block karein."),
+            "message": ("This number is not on any list and not in your contacts. No alert "
+                        "is needed — but if the caller asks for an OTP or money, block them."),
             "confidence": "low"}

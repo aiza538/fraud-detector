@@ -12,11 +12,21 @@ import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { deleteAccount, getAccount } from "../src/services/api";
 import { clearAlerts } from "../src/services/fraudAlerts";
+import { getProtectionStatus } from "../src/services/protection";
 
 type Account = { verified: boolean };
+type Protection = Awaited<ReturnType<typeof getProtectionStatus>>;
+
+const PROTECTIONS: { key: keyof Protection; label: string }[] = [
+  { key: "notifications", label: "Alert notifications" },
+  { key: "contacts", label: "Recognise saved contacts" },
+  { key: "calls", label: "Check incoming calls" },
+  { key: "messages", label: "Scan WhatsApp and SMS" },
+];
 
 export default function AccountScreen() {
   const [account, setAccount] = useState<Account | null>(null);
+  const [protection, setProtection] = useState<Protection | null>(null);
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -29,7 +39,8 @@ export default function AccountScreen() {
       setError("");
       getAccount()
         .then((data: Account) => active && setAccount(data))
-        .catch((err: any) => active && setError(err?.message || "Load nahi ho saka."));
+        .catch((err: any) => active && setError(err?.message || "Could not load your account."));
+      getProtectionStatus().then((data) => active && setProtection(data));
       return () => {
         active = false;
       };
@@ -44,7 +55,7 @@ export default function AccountScreen() {
       await clearAlerts();
       setDeleted(true);
     } catch (err: any) {
-      setError(err?.message || "Delete nahi ho saka — dobara try karein.");
+      setError(err?.message || "Could not delete the account. Please try again.");
     } finally {
       setDeleting(false);
       setConfirming(false);
@@ -64,57 +75,82 @@ export default function AccountScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         {deleted ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Account delete ho gaya</Text>
+            <Text style={styles.cardTitle}>Account deleted</Text>
             <Text style={styles.text}>
-              Aapka account, reports aur is phone ki alert history hata di gayi
-              hai. App istemal karte rahne par ek naya anonymous account khud
-              ban jayega.
+              Your account, your reports and the alert history on this phone
+              have been removed. If you keep using the app, a new anonymous
+              account is created automatically.
             </Text>
             <TouchableOpacity style={styles.button} onPress={() => router.replace("/")}>
-              <Text style={styles.buttonText}>Home par jayein</Text>
+              <Text style={styles.buttonText}>Go to home</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <>
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Aapka account</Text>
+              <Text style={styles.cardTitle}>Your account</Text>
               {account === null && !error ? (
                 <ActivityIndicator color="#1d4ed8" style={{ marginTop: 12 }} />
               ) : account?.verified ? (
                 <Text style={[styles.status, styles.verified]}>✓ Email verified</Text>
               ) : (
                 <>
-                  <Text style={styles.status}>Anonymous — email verify nahi hua</Text>
+                  <Text style={styles.status}>Anonymous — email not verified</Text>
                   <Text style={styles.text}>
-                    Message aur number check karne ke liye kuch nahi chahiye.
-                    Sirf scam number report karne ke liye email verify karna
-                    hota hai.
+                    You do not need anything to check messages and numbers.
+                    An email is only needed to report a scam number.
                   </Text>
                   <TouchableOpacity
                     style={styles.button}
                     onPress={() => router.push("/verify-email")}>
-                    <Text style={styles.buttonText}>Email verify karein</Text>
+                    <Text style={styles.buttonText}>Verify email</Text>
                   </TouchableOpacity>
                 </>
               )}
             </View>
 
+            {protection && (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Protection</Text>
+                {PROTECTIONS.map(({ key, label }) => (
+                  <View key={key} style={styles.protectionRow}>
+                    <Text style={styles.text}>{label}</Text>
+                    <Text
+                      style={[
+                        styles.protectionState,
+                        protection[key] === true && styles.verified,
+                        protection[key] === false && styles.off,
+                      ]}>
+                      {protection[key] === true
+                        ? "✓ On"
+                        : protection[key] === false
+                          ? "✗ Off"
+                          : "Not available on this phone"}
+                    </Text>
+                  </View>
+                ))}
+                <TouchableOpacity style={styles.button} onPress={() => router.push("/welcome")}>
+                  <Text style={styles.buttonText}>Open protection setup</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Account delete karein</Text>
+              <Text style={styles.cardTitle}>Delete account</Text>
               <Text style={styles.text}>
-                Is se aapka account, aapki reports aur is phone ki alert
-                history hamesha ke liye hat jati hai.
+                This permanently removes your account, your reports and
+                the alert history on this phone.
               </Text>
               {!confirming ? (
                 <TouchableOpacity
                   style={[styles.button, styles.dangerOutline]}
                   onPress={() => setConfirming(true)}>
-                  <Text style={styles.dangerText}>Account delete karein</Text>
+                  <Text style={styles.dangerText}>Delete account</Text>
                 </TouchableOpacity>
               ) : (
                 <>
                   <Text style={styles.confirmText}>
-                    Pakka delete karna hai? Ye wapas nahi ho sakta.
+                    Are you sure? This cannot be undone.
                   </Text>
                   <TouchableOpacity
                     style={[styles.button, styles.danger]}
@@ -123,7 +159,7 @@ export default function AccountScreen() {
                     {deleting ? (
                       <ActivityIndicator color="#fff" size="small" />
                     ) : (
-                      <Text style={styles.buttonText}>Haan, delete karein</Text>
+                      <Text style={styles.buttonText}>Yes, delete</Text>
                     )}
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => setConfirming(false)} disabled={deleting}>
@@ -167,6 +203,14 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontWeight: "800", color: "#1e3a8a", marginBottom: 6 },
   status: { fontSize: 14, fontWeight: "700", color: "#6b7280", marginBottom: 6 },
   verified: { color: "#16a34a" },
+  off: { color: "#dc2626" },
+  protectionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  protectionState: { fontSize: 13, fontWeight: "700", color: "#6b7280" },
   text: { fontSize: 13, color: "#374151", lineHeight: 20 },
   button: {
     backgroundColor: "#1d4ed8",

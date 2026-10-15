@@ -40,7 +40,8 @@ async function request(path, options = {}) {
     session = await getSession();
     response = await send(path, options, session.token);
   }
-  if (response.status === 204) return null;
+  // 204 = kuch wapas nahi; 304 = jo phone ke paas hai wahi abhi bhi sahi hai.
+  if (response.status === 204 || response.status === 304) return null;
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new ApiError(
@@ -105,6 +106,15 @@ export function reportNumber(number, note) {
 
 export function getNumberLists() {
   return request("/number-lists");
+}
+
+/** Message scanner ki rules. `version` phone par lagi rules ka version hai;
+ *  server par kuch naya na ho to null aata hai (304, khali jawab). */
+export function getRules(version) {
+  return request(
+    "/rules",
+    version ? { headers: { "If-None-Match": `"${version}"` } } : {},
+  );
 }
 
 export function requestEmailCode(email) {

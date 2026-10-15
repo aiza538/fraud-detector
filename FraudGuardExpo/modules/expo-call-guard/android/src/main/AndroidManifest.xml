@@ -1,18 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-  <uses-permission android:name="android.permission.READ_CALL_LOG" />
+  <!-- Call log aur phone state permissions jaan bujh kar NAHI hain: calls ab
+       Call Screening se aati hain (Android 10+), jise in ki zarurat nahi. -->
   <uses-permission android:name="android.permission.READ_CONTACTS" />
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
   <application>
-    <receiver
-      android:name="expo.modules.callguard.CallStateReceiver"
-      android:enabled="true"
+    <service
+      android:name="expo.modules.callguard.FraudCallScreeningService"
+      android:permission="android.permission.BIND_SCREENING_SERVICE"
       android:exported="true">
       <intent-filter>
-        <action android:name="android.intent.action.PHONE_STATE" />
+        <action android:name="android.telecom.CallScreeningService" />
       </intent-filter>
-    </receiver>
+    </service>
 
     <service
       android:name="expo.modules.callguard.FraudNotificationListener"

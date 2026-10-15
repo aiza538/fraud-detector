@@ -1,19 +1,16 @@
 package expo.modules.callguard
 
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
-import android.telephony.TelephonyManager
 import android.util.Log
 
-class CallStateReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != TelephonyManager.ACTION_PHONE_STATE_CHANGED) return
-        val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
-        Log.d("CallGuard", "PHONE_STATE: $state")
-        if (state != TelephonyManager.EXTRA_STATE_RINGING) return
-
-        val number = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+/**
+ * Aane wali phone call ka faisla aur alert. FraudCallScreeningService se chalta
+ * hai (Android 10+). Pehle ye CallStateReceiver me tha, jo PHONE_STATE
+ * broadcast + READ_CALL_LOG permission par chalta tha — Google Play is
+ * permission par sabse sakht hai, aur Call Screening ko iski zarurat nahi.
+ */
+object CallAlert {
+    fun handleIncoming(context: Context, number: String?) {
         Log.d("CallGuard", "incoming number raw=$number")
 
         // --- Saved contact: koi alert nahi ---------------------------------
@@ -54,15 +51,15 @@ class CallStateReceiver : BroadcastReceiver() {
             return
         }
 
-        val subject = if (number.isNullOrEmpty()) "Hidden/Unknown number" else number
+        val subject = if (number.isNullOrEmpty()) "Hidden number" else number
         val label = when (severity) {
             NumberRules.Severity.SCAM ->
-                "Impersonation / community-reported scam number — ye number bank ya sarkari idare ka NAHI hai"
+                "Impersonation or community-reported scam number. This is NOT a bank or government number."
             NumberRules.Severity.SUSPICIOUS ->
                 if (number.isNullOrEmpty())
-                    "Hidden caller-ID se call — banks/authorities kabhi caller ID chhupa kar call nahi karte. OTP/info share se pehle verify karein."
+                    "Call from a hidden number. Banks and authorities never hide their caller ID. Verify before sharing an OTP or any details."
                 else
-                    "Unverified UAN-style number — scammers official-looking bank numbers spoof karte hain"
+                    "Unverified UAN-style number. Scammers fake official-looking bank numbers."
             else -> "Unknown incoming number"
         }
         Log.d("CallGuard", "classify -> $severity")

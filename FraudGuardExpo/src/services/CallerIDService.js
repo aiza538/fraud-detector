@@ -67,7 +67,7 @@ export function checkCallerID(incomingNumber, { isSavedContact = false } = {}) {
   if (scamNumbers.has(cleaned)) {
     return {
       status: "scam",
-      warning: "Ye number community me fraudulent report kiya gaya hai.",
+      warning: "This number has been reported as fraudulent by the community.",
     };
   }
 
@@ -86,14 +86,14 @@ export function checkCallerID(incomingNumber, { isSavedContact = false } = {}) {
   if (spoofable.has(cleaned)) {
     return {
       status: "scam",
-      warning: "Ye number kisi verified bank/sarkari helpline se bahut milta hai — impersonation scam hai.",
+      warning: "This number closely resembles a verified bank or government helpline — an impersonation scam.",
     };
   }
 
   if (cleaned.length === 9 && cleaned.startsWith("111")) {
     return {
       status: "suspicious",
-      warning: "UAN-style number jo verified list me nahi — verify karein.",
+      warning: "UAN-style number that is not on the verified list — verify it independently.",
     };
   }
 

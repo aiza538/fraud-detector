@@ -22,7 +22,7 @@
         "recover",
         "band"
       ],
-      "label": "WhatsApp account ban hoax — verification code mangna hijacking attempt hai"
+      "label": "WhatsApp account ban hoax — anyone asking for your verification code is trying to take over your account"
     },
     {
       "id": "investment_group",
@@ -44,7 +44,7 @@
         "trading",
         "telegram"
       ],
-      "label": "Investment group scam — guaranteed daily profit Ponzi fraud hai"
+      "label": "Investment group scam — guaranteed daily profit is a Ponzi fraud"
     },
     {
       "id": "voice_clone_family_emergency",
@@ -67,7 +67,7 @@
         "udhaar",
         "paise bhej"
       ],
-      "label": "Cloned voice / family emergency scam — voice message identity proof nahi"
+      "label": "Cloned voice or family emergency scam — a voice message does not prove who is speaking"
     },
     {
       "id": "money_otp_harvest",
@@ -91,7 +91,7 @@
         "account detail",
         "atm card"
       ],
-      "label": "Money/OTP harvesting message — koi bhi OTP ya payment request verify karke hi bhejein"
+      "label": "Money or OTP request — verify any OTP or payment request before you send anything"
     },
     {
       "id": "credential_harvest",
@@ -118,7 +118,7 @@
         "account detail",
         "bank account"
       ],
-      "label": "Credential harvesting attempt — bank/authority OTP, ATM details ya CNIC KABHI nahi mangta"
+      "label": "Credential theft attempt — banks and authorities NEVER ask for your OTP, ATM details or CNIC"
     },
     {
       "id": "lucky_draw_prize",
@@ -157,7 +157,7 @@
         "inam",
         "rabta"
       ],
-      "label": "Lucky draw / prize scam — unknown SMS ka 'bike/cash jeet gaye' nara fake lottery bait hai, call-back se fraud hota hai"
+      "label": "Lucky draw or prize scam — 'you have won a bike or cash' messages from unknown senders are fake lottery bait"
     }
   ],
   "otp": {

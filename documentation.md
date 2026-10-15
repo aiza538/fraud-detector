@@ -208,9 +208,14 @@ The app talks only to the token-protected `/v1` API (section 7). All calls go th
    - The app calls `GET /v1/number-lists` (see [callMonitor.js](FraudGuardExpo/src/services/callMonitor.js)).
    - The backend sends verified numbers (`directory`), confirmed scam numbers (`scam`) and near-neighbour spoof targets (`spoofable`). Numbers below the report threshold are never sent.
    - The app hands these to the Android Kotlin module ([CallGuardModule.kt](FraudGuardExpo/modules/expo-call-guard/android/src/main/java/expo/modules/callguard/CallGuardModule.kt) -> `NumberRules.kt`), so calls are screened on the device without internet.
+   - **Incoming calls arrive through Android's Call Screening** ([FraudCallScreeningService.kt](FraudGuardExpo/modules/expo-call-guard/android/src/main/java/expo/modules/callguard/FraudCallScreeningService.kt) -> [CallAlert.kt](FraudGuardExpo/modules/expo-call-guard/android/src/main/java/expo/modules/callguard/CallAlert.kt)). On first start the app asks Android to make FraudGuard the "caller ID & spam" app; only then does the system show it incoming calls.
+   - **Alert only:** the app answers Android immediately with "let the call through", then decides whether to show a warning. It never blocks or silences a call, so a real bank call is never lost to a false alarm (team decision, 15 October 2026).
+   - **No call-log or phone-state permission.** The old `PHONE_STATE` broadcast receiver, which needed `READ_CALL_LOG` (the permission Google Play restricts most), was removed. `app.json` also blocks `READ_CALL_LOG`, `WRITE_CALL_LOG` and `PROCESS_OUTGOING_CALLS`, so no library can add them back. Call Screening exists only on Android 10 and newer; older phones get no call alerts but keep message scanning, the analyzer and the number checker (team decision).
 4. **Background message rules**:
    - `GET /v1/rules` serves the phone's own rule set (section 10).
-   - **Not finished:** the Kotlin scanner still uses the copy compiled into the app. A test keeps that copy identical to the server file until the phone is switched to the downloaded rules.
+   - The Kotlin scanner ([TextRules.kt](FraudGuardExpo/modules/expo-call-guard/android/src/main/java/expo/modules/callguard/TextRules.kt)) holds no rules of its own. It uses the last rules downloaded from the server, saved on the phone, or the copy shipped inside the app ([assets/phone_rules.json](FraudGuardExpo/modules/expo-call-guard/android/src/main/assets/phone_rules.json)) if nothing has been downloaded yet.
+   - On each sync the app sends the version it has; the server answers with an empty `304` if nothing changed. A downloaded file is saved only if it parses fully and uses a schema version this app understands (`schema: 1`); otherwise the previous rules stay in use.
+   - **Syncing** happens when the app starts and in the background about every 12 hours even if the app is not opened ([backgroundSync.js](FraudGuardExpo/src/services/backgroundSync.js), Android WorkManager via `expo-background-task`). Rules download and Call Screening were tested on a real phone on 15 October 2026.
 5. **Change detection**: `/v1/number-lists` and `/v1/rules` send an `ETag`. A client that sends it back in `If-None-Match` gets an empty `304` when nothing changed (the number list is about 98 KB).
 
 **Expo Go limitation.** Call screening and WhatsApp/SMS scanning are custom Android code. Expo Go cannot load custom native code, so the app switches those features off there. Only the analyzer, number checker, email verification and account screens run in Expo Go. Testing the protection features needs a development build.
@@ -225,12 +230,12 @@ All automated test suites pass without regressions:
   - **False Positive Rate**: **0.00%** (0/12 triggered across legitimate Pakistani bank OTPs and Global 2FA codes).
   - **Caller ID / Levenshtein Precision**: **100.00%** (9/9 correct across `OFFICIAL_VERIFIED`, `SPOOF_SUSPECT`, and `UNVERIFIED`).
   - **Multi-Region Loader Validation**: Root region parsing (`PK` and `GLOBAL`) verified for both [backend/data/scam_patterns.json](backend/data/scam_patterns.json) and [backend/data/official_directory.json](backend/data/official_directory.json).
-* **Caller ID Screening Tests** (22 test cases): Area-code prefixed UANs, bare UANs, shortcodes (`1991`, `8171`, `1700`, `1777`, `1717`), toll-free lines, Levenshtein spoof detections (HBL, Meezan), consensus threshold handling, and personal mobile pass-throughs pass 100%.
+* **Caller ID Screening Tests** (22 test cases, [backend/tests/test_number_screening.py](backend/tests/test_number_screening.py)): the 4-level verdict in `number_rules.screen_number` for area-code prefixed UANs, bare UANs, short codes (`1991`, `1700`, `1717`), toll-free lines, Levenshtein spoofs (HBL, Meezan), personal mobiles (unknown, never suspicious), saved contacts and a confirmed scam number; plus the spoofable list. Reports, consensus and decay are tested through the API in `test_api_v1.py`.
 * **Pattern Matching Tests** (46 test cases): Validated that normal conversation messages, legitimate bank OTP SMS alerts, and telecom recharge receipts remain silent, while domestic Pakistani scams (Roman Urdu & Urdu script) and global cross-border threats (Crypto drainers, DHL/FedEx holds, Apple ID lockouts) are reliably flagged with statutory PECA citations.
 * **Group Chat & Context Screening Tests** (16 test cases): Group link suppression and 1:1 threat identification verified.
-* **`/v1` API Tests** (36 test cases, [backend/tests/test_api_v1.py](backend/tests/test_api_v1.py)): every route refuses requests without a token; forged, expired, blocked and revoked tokens are rejected; signup, daily, per-network and per-email limits hold; the email-code flow (wrong code lockout, expiry, account restore); report consensus rules; admin-only removal; delete account; `ETag`/`304` behaviour; the legacy routes still work; production refuses to start without secrets; the migration builds exactly the tables the code expects.
+* **`/v1` API Tests** (37 test cases, [backend/tests/test_api_v1.py](backend/tests/test_api_v1.py)): every route refuses requests without a token; forged, expired, blocked and revoked tokens are rejected; signup, daily, per-network and per-email limits hold; the email-code flow (wrong code lockout, expiry, account restore); report consensus rules; admin-only removal; delete account; `ETag`/`304` behaviour; the old open routes are gone (404); production refuses to start without secrets; the migration builds exactly the tables the code expects.
 * **Email Sending Tests** (6 test cases, [backend/tests/test_mailer.py](backend/tests/test_mailer.py)): Resend first, Brevo when Resend fails, an error when both fail, switched off in production without a sender or keys, and no code or email address in failure logs.
-* **Phone Rules Tests** (4 test cases, [backend/tests/test_phone_rules.py](backend/tests/test_phone_rules.py)): the server rule file matches the rules compiled into the app; every rule is well formed; 19 ordinary everyday messages raise no alert.
+* **Phone Rules Tests** (5 test cases, [backend/tests/test_phone_rules.py](backend/tests/test_phone_rules.py)): the app's bundled copy is identical to the server file; the Kotlin code holds no second copy of the rules; every rule is well formed; 19 ordinary everyday messages raise no alert.
 * **Continuous integration**: [.github/workflows/backend-tests.yml](.github/workflows/backend-tests.yml) runs all suites on every pull request that touches `backend/` or the Android module.
 
 Run everything from `backend/`:
@@ -263,7 +268,7 @@ Defined in [backend/api_v1.py](backend/api_v1.py). Every route needs `Authorizat
 | `POST /v1/report-number` | Verified email | Records one report per account per number. |
 | `POST /v1/admin/unreport-number` | Admin | Removes all community reports for a number. |
 
-**Legacy routes.** The unversioned routes in [backend/main.py](backend/main.py) (`/analyze/text`, `/analyze/audio`, `/check-number`, `/report-number`, `/unreport-number`, `/number-lists`) are unchanged and need no token. The mobile app no longer uses them. They remain only because the web app and the browser extension still call them, and they still store reports in a JSON file. They are to be removed once those clients move to `/v1`.
+**Old open routes removed** (15 October 2026). The unversioned routes (`/analyze/text`, `/analyze/audio`, `/check-number`, `/report-number`, `/unreport-number`, `/number-lists`) needed no token, so anyone could use the Gemini and AssemblyAI keys through them, and `/unreport-number` let anyone wipe reports. [backend/main.py](backend/main.py) now only sets up the app and keeps an open health check at `/` for Render and the uptime monitor. A test fails if any of the old routes comes back. The old web app and browser extension still point at the old Hugging Face server and would need the `/v1` token client to use the live server.
 
 ---
 
@@ -327,9 +332,9 @@ The phone's background scanner and the analyzer use **different rule sets on pur
 
 Tested on 20 ordinary everyday messages, the analyzer patterns raised a scam alert on 12 and the phone rules on 1. Example: "Parcel aa gaya hai, delivery charges 200 rupay rider ko de dena" matches the analyzer's courier pattern. Shipping the analyzer patterns to the phone would flood users with false alarms, so the phone keeps its own stricter set.
 
-* `phone_rules.json` was generated from `TextRules.kt` by script. A test fails if the two differ.
+* `phone_rules.json` was first generated from the rules that used to be hardcoded in `TextRules.kt`, so the phone's behaviour did not change when the rules moved.
 * `GET /v1/rules` serves it with a `version` (a hash of the content) and `schema: 1`.
-* Adding or changing a phone rule: edit the JSON, then run the phone rules tests. The 19 everyday messages must stay silent.
+* Adding or changing a phone rule: edit `backend/data/phone_rules.json`, copy it over the app's copy in `FraudGuardExpo/modules/expo-call-guard/android/src/main/assets/`, then run the phone rules tests. The tests fail if the two copies differ, if rules reappear in the Kotlin code, or if any of the 19 everyday messages raises an alert. Phones pick up the change on their next sync, without an app update; the app's own copy only matters for new installs and phones that are offline.
 
 **Known issues, left unchanged for a team decision:**
 
@@ -381,8 +386,13 @@ Locally the server uses a SQLite file (`backend/fraudguard-dev.db`) and creates 
 * **Cloud builds**: `eas.json` points the `preview` and `production` profiles at the live server. `preview` produces an installable APK for testers.
 * **[session.js](FraudGuardExpo/src/services/session.js)** and **[api.js](FraudGuardExpo/src/services/api.js)**: token handling and the single `/v1` client. Server error messages (for example a daily limit) are shown to the user.
 * **[app/verify-email.tsx](FraudGuardExpo/app/verify-email.tsx)**: opens when an unverified user taps Report. After verifying, the user taps Report again.
-* **[app/account.tsx](FraudGuardExpo/app/account.tsx)**: reached from the 👤 icon on the home screen. Shows verified status and deletes the account, the user's reports and the phone's alert history.
-* **Removed**: the "this is my number, remove the block" button, which let anyone unblock any number. Removal is admin-only; a user-facing appeal route is not built yet.
+* **[app/account.tsx](FraudGuardExpo/app/account.tsx)**: reached from the 👤 icon on the home screen. Shows verified status, which protections are on or off, and deletes the account, the user's reports and the phone's alert history.
+* **[app/welcome.tsx](FraudGuardExpo/app/welcome.tsx)**: shown on first launch on Android. It asks for each permission one at a time (notifications, contacts, caller ID & spam app, notification access), and before each one explains why it is needed and where the data goes. Every step has "Abhi nahi" (not now), and the setup can be reopened from the account screen. This is the in-app disclosure Google Play requires for notification access and call screening. Steps that are impossible on the phone (for example calls on Android 9, or everything in Expo Go) are skipped.
+* **All user-facing text is in English** (15 October 2026): app screens, server messages from `/v1`, the verification email, and the phone's alert notifications. The sample scam messages on the analyzer stay in Roman Urdu on purpose, because that is how real scam messages arrive.
+* **No permission prompts at startup any more.** They used to fire all at once when the app opened, with no explanation. Permission helpers live in [src/services/protection.js](FraudGuardExpo/src/services/protection.js).
+* **Removed**: the old "this is my number, remove the block" button, which let anyone unblock any number.
+* **Appeal**: when a number is a community-confirmed scam, the number checker shows "This is my number — request removal". It opens an email to the support address with the number filled in; an admin then removes the reports with `/v1/admin/unreport-number`. The address comes from `EXPO_PUBLIC_SUPPORT_EMAIL` (set on expo.dev for cloud builds); without it the button is hidden.
+* **Microphone permission removed**: the app only picks existing audio files and never records, so the unused `expo-audio` package and `RECORD_AUDIO` were removed, and `app.json` blocks `RECORD_AUDIO` so no library can add it back.
 * **Removed**: two unused duplicate API files (`constants/api.ts`, `src/services/FraudAPIService.js`).
 * **Fixed**: the package lock was out of sync with `package.json`, and web mode crashed on start because the alert-history file was opened at load time.
 
@@ -395,12 +405,9 @@ Locally the server uses a SQLite file (`backend/fraudguard-dev.db`) and creates 
 | Item | Waiting on |
 | :--- | :--- |
 | Send real email codes | Code done. Waiting on the domain verified in Resend and Brevo, then `MAIL_FROM` and the two keys set on Render |
-| Kotlin scanner reads the downloaded rules | A development build to test on (needs access to the Expo account) |
-| Switch call detection to Android's Call Screening API | A development build to test on |
-| Genuine-phone check (Play Integrity) before reports count | A Google Play developer account |
-| Remove the legacy open routes | The web app and extension moving to `/v1`, or a decision to retire them |
-| User-facing appeal route | A support contact and named admins |
-| Onboarding screens that explain each permission | Nothing; not started |
+| Genuine-phone check (Play Integrity) before reports count | Deferred: it can only be tested once the app is installed from Google Play. Verified email, the 48-hour wait, distinct networks and daily caps already guard reports |
+| App icon | Still the default Expo icon (`FraudGuardExpo/assets/images/`); needs a real FraudGuard AI icon before the store |
+| Appeal button shows in the app | The team setting `EXPO_PUBLIC_SUPPORT_EMAIL` on expo.dev, and `ADMIN_EMAILS` on Render |
 | Privacy policy | Team |
 | iOS app, web dashboard, browser extension | Deferred by the team |
 
@@ -415,3 +422,4 @@ Locally the server uses a SQLite file (`backend/fraudguard-dev.db`) and creates 
 | #11 `6-Docs_Update` | This document brought up to date. |
 | `7-Live_Server` | Server live on Render; package ID `com.fraudguard.ai`; cloud builds point at the live server; sign-up log line for the proxy check. |
 | `8-Email_Sending` | Real email codes through Resend with Brevo as backup (switched on by settings); proxy setting confirmed as 3 on Render. |
+| `9-Phone_Rules_Download` | The phone's message scanner uses rules downloaded from the server (app copy as fallback); calls detected through Call Screening, alert only; call-log permissions removed; welcome screens explain each permission before asking; all user-facing text in English; old open routes removed from the server; appeal button; background sync; microphone permission removed. |

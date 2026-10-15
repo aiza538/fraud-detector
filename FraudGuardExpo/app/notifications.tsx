@@ -93,9 +93,9 @@ export default function NotificationsScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyEmoji}>🛡️</Text>
-            <Text style={styles.emptyTitle}>Koi alerts nahi mile abhi tak</Text>
+            <Text style={styles.emptyTitle}>No alerts yet</Text>
             <Text style={styles.emptyText}>
-              Jab koi scam ya suspicious call aayegi, wo yahan list hogi.
+              Scam and suspicious calls and messages will be listed here.
             </Text>
           </View>
         }

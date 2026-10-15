@@ -87,7 +87,7 @@ def auth_anonymous():
         .where(User.signup_ip_hash == ip_hash, User.created_at > now - 3600))
     if recent >= config.SIGNUPS_PER_IP_PER_HOUR:
         raise ApiError(429, "too_many_signups",
-                       "Is network se bohat zyada naye accounts ban chuke hain. Thori der baad koshish karein.")
+                       "Too many new accounts from this network. Please try again later.")
     user = User(id=uuid.uuid4().hex, created_at=now, signup_ip_hash=ip_hash)
     session.add(user)
     session.commit()
@@ -130,11 +130,11 @@ def email_start():
     email = _body().get("email")
     normalized = normalize_email(email)
     if not normalized:
-        raise ApiError(400, "invalid_email", "Email sahi nahi hai.")
+        raise ApiError(400, "invalid_email", "Please enter a valid email address.")
     if normalized.rsplit("@", 1)[1] in config.DISPOSABLE_EMAIL_DOMAINS:
-        raise ApiError(400, "disposable_email", "Temporary email address allowed nahi hai.")
+        raise ApiError(400, "disposable_email", "Temporary email addresses are not allowed.")
     if not mailer.is_configured():
-        raise ApiError(503, "email_unavailable", "Email verification abhi available nahi hai.")
+        raise ApiError(503, "email_unavailable", "Email verification is not available right now.")
 
     session = get_session()
     user = g.user
@@ -143,12 +143,12 @@ def email_start():
 
     current = session.get(EmailChallenge, user.id)
     if current and now - current.created_at < config.EMAIL_CODE_RESEND_SECONDS:
-        raise ApiError(429, "resend_too_soon", "Naya code mangne se pehle thora intezar karein.")
+        raise ApiError(429, "resend_too_soon", "Please wait a moment before asking for a new code.")
     from_ip = session.scalar(
         select(func.count()).select_from(EmailChallenge)
         .where(EmailChallenge.ip_hash == ip_hash, EmailChallenge.created_at > now - 3600))
     if from_ip >= config.EMAIL_CODES_PER_IP_PER_HOUR:
-        raise ApiError(429, "too_many_codes", "Is network se bohat zyada codes mange gaye hain.")
+        raise ApiError(429, "too_many_codes", "Too many codes requested from this network. Please try again later.")
     email_hash = hash_email(normalized)
     consume_user_quota(user, "email_code")
     consume_quota("email:" + email_hash[:32], "email_code",
@@ -166,7 +166,7 @@ def email_start():
         session.commit()
     except IntegrityError:
         session.rollback()  # isi user ki doosri request ne abhi code bana liya
-        raise ApiError(429, "resend_too_soon", "Naya code mangne se pehle thora intezar karein.")
+        raise ApiError(429, "resend_too_soon", "Please wait a moment before asking for a new code.")
     try:
         # Bheja usi address par jata hai jo user ne likha — normalized roop sirf
         # "ek insaan = ek account" ke liye hai.
@@ -174,7 +174,7 @@ def email_start():
     except Exception:
         session.execute(delete(EmailChallenge).where(EmailChallenge.user_id == user.id))
         session.commit()
-        raise ApiError(502, "email_failed", "Code bheja nahi ja saka. Dobara koshish karein.")
+        raise ApiError(502, "email_failed", "The code could not be sent. Please try again.")
     # Jawab hamesha ek jaisa — ye nahi batata ke email pehle se registered hai ya nahi.
     return jsonify({"status": "sent", "expires_in": config.EMAIL_CODE_TTL_SECONDS})
 
@@ -184,7 +184,7 @@ def email_start():
 def email_verify():
     code = _body().get("code")
     if not isinstance(code, str) or not code.strip():
-        raise ApiError(400, "invalid_code", "Code missing hai.")
+        raise ApiError(400, "invalid_code", "Please enter the code.")
     session = get_session()
     user = g.user
     now = int(time.time())
@@ -198,11 +198,11 @@ def email_verify():
         .values(attempts=EmailChallenge.attempts + 1)).rowcount
     session.commit()
     if not counted:
-        raise ApiError(400, "code_expired", "Code expire ho gaya ya bohat zyada ghalat koshishein hui. Naya code mangein.")
+        raise ApiError(400, "code_expired", "This code has expired or had too many wrong attempts. Please ask for a new code.")
     challenge = session.get(EmailChallenge, user.id)
     if challenge is None or not hmac.compare_digest(
             challenge.code_hash, hash_code(user.id, code.strip())):
-        raise ApiError(400, "wrong_code", "Code ghalat hai.")
+        raise ApiError(400, "wrong_code", "That code is not correct.")
 
     owner = session.scalar(select(User).where(User.email_hash == challenge.email_hash))
     session.delete(challenge)
@@ -212,7 +212,7 @@ def email_verify():
         # hatta hai; verified account (jis ke apne reports hain) kabhi nahi.
         if owner.blocked or user.is_verified:
             session.commit()
-            raise ApiError(409, "email_in_use", "Ye email kisi aur account par use ho raha hai.")
+            raise ApiError(409, "email_in_use", "This email is already used by another account.")
         _delete_user(session, user)
         user = owner
     else:
@@ -222,7 +222,7 @@ def email_verify():
         session.commit()
     except IntegrityError:
         session.rollback()  # do devices ne ek hi email ek saath verify kiya
-        raise ApiError(409, "try_again", "Dobara koshish karein.")
+        raise ApiError(409, "try_again", "Please try again.")
     return jsonify(_session_payload(user))
 
 
@@ -248,7 +248,7 @@ def analyze_audio():
         raise ApiError(400, "invalid_file", "No audio file provided")
     extension = os.path.splitext(file.filename)[1].lower()
     if extension not in AUDIO_EXTENSIONS:
-        raise ApiError(400, "invalid_file", "Ye audio format support nahi hota.")
+        raise ApiError(400, "invalid_file", "This audio format is not supported.")
     consume_user_quota(g.user, "analyze_audio")
 
     # Client ka filename disk par kabhi use nahi hota: do users ki "audio.mp3"
@@ -340,7 +340,7 @@ def report_number():
     user = g.user
     if not user.is_verified:
         raise ApiError(403, "email_verification_required",
-                       "Number report karne ke liye pehle email verify karein.")
+                       "Please verify your email before reporting a number.")
     data = _body()
     number = data.get("number")
     cleaned = number_rules.clean_number(number) if isinstance(number, str) else ""
@@ -349,7 +349,7 @@ def report_number():
     entity = number_rules.official_entity(cleaned)
     if entity:
         raise ApiError(400, "official_number",
-                       f"{entity} ek verified official number hai — ise report nahi kiya ja sakta.")
+                       f"{entity} is a verified official number and cannot be reported.")
 
     session = get_session()
     already = session.scalar(select(NumberReport.id).where(
@@ -368,12 +368,12 @@ def report_number():
     count = _report_counts(session, [cleaned]).get(cleaned, 0)
     if count >= config.REPORT_THRESHOLD:
         return jsonify({"status": "confirmed", "report_count": count,
-                        "message": "Ye number ab scam-confirmed hai."})
+                        "message": "This number is now confirmed as a scam."})
     return jsonify({
         "status": "pending", "report_count": count,
         "reports_needed": config.REPORT_THRESHOLD,
-        "message": (f"Report darj ho gaya. {config.REPORT_THRESHOLD} alag users ke report "
-                    "chahiye — tab ye number sab ke liye block hoga."),
+        "message": (f"Report recorded. The number is blocked for everyone once "
+                    f"{config.REPORT_THRESHOLD} different users have reported it."),
     })
 
 
@@ -382,7 +382,7 @@ def report_number():
 def admin_unreport_number():
     """Appeal path: sirf admin kisi number ke community reports hata sakta hai."""
     if not is_admin(g.user):
-        raise ApiError(403, "admin_only", "Ye kaam sirf admin kar sakta hai.")
+        raise ApiError(403, "admin_only", "Only an admin can do this.")
     number = _body().get("number")
     cleaned = number_rules.clean_number(number) if isinstance(number, str) else ""
     if not number_rules._plausible_caller_number(cleaned):
@@ -392,5 +392,5 @@ def admin_unreport_number():
         NumberReport.number.in_(number_rules.lookup_keys(cleaned)))).rowcount
     session.commit()
     if not removed:
-        raise ApiError(404, "not_found", "Is number par koi report nahi thi.")
+        raise ApiError(404, "not_found", "There were no reports for this number.")
     return jsonify({"status": "unreported", "removed_reports": removed})

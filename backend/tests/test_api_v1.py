@@ -504,15 +504,16 @@ class AnalyzeTests(ApiTestCase):
             handler.assert_not_called()
 
 
-class LegacyRoutesStillWork(ApiTestCase):
-    """Purani app abhi bina token ke purane routes use karti hai — /v1 ke aane
-    se wo nahi tootni chahiye."""
+class OldOpenRoutesAreGone(ApiTestCase):
+    """Purane bina-token routes se koi bhi AI keys istemal kar sakta tha aur
+    /unreport-number se reports mita sakta tha. Wo wapas nahi aane chahiye."""
 
-    def test_old_routes_are_untouched(self):
+    def test_only_the_health_check_is_open(self):
         self.assertEqual(self.client.get("/").status_code, 200)
-        r = self.client.post("/check-number", json={"number": "111-111-427"})
-        self.assertEqual(r.get_json()["status"], "scam")
-        self.assertTrue(self.client.get("/number-lists").get_json()["spoofable"])
+        for method, path in [("POST", "/analyze/text"), ("POST", "/analyze/audio"),
+                             ("POST", "/check-number"), ("POST", "/report-number"),
+                             ("POST", "/unreport-number"), ("GET", "/number-lists")]:
+            self.assertEqual(self.client.open(path, method=method).status_code, 404, path)
 
 
 class ConfigTests(unittest.TestCase):
