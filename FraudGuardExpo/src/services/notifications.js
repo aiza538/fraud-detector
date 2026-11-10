@@ -24,10 +24,7 @@ export async function ensureNotificationsReady() {
       lightColor: "#dc2626",
     });
   }
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status !== "granted") {
-    await Notifications.requestPermissionsAsync();
-  }
+  // Permission yahan nahi maangi jati — welcome screen pehle wajah batati hai.
 }
 
 const LEVEL_TITLES = {

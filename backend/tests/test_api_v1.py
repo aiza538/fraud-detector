@@ -428,13 +428,14 @@ class AnalyzeTests(ApiTestCase):
     def test_text_goes_to_the_detector_and_respects_the_daily_limit(self):
         headers = self.signup()
         with mock.patch("fraud_detector.analyze_text", return_value={"fraud": False}) as detector, \
-                mock.patch.dict(config.DAILY_LIMITS, {"analyze_text": 2}):
+                mock.patch.dict(config.FREE_DAILY_LIMITS, {"analyze_text": 2}):
             r = self.call("POST", "/v1/analyze/text", headers, json={"text": "hello", "channel": "whatsapp"})
             self.assertEqual(r.get_json(), {"fraud": False})
             detector.assert_called_once_with("hello", channel="whatsapp")
             self.call("POST", "/v1/analyze/text", headers, json={"text": "again"})
             r = self.call("POST", "/v1/analyze/text", headers, json={"text": "third"})
-            self.assertEqual((r.status_code, r.get_json()["error"]), (429, "daily_limit"))
+            # Free plan ki limit — app is code par Premium screen dikhati hai.
+            self.assertEqual((r.status_code, r.get_json()["error"]), (429, "free_limit"))
             self.assertEqual(detector.call_count, 2)
             # limit har user ki apni hai
             other = self.signup("10.0.0.2")
@@ -504,15 +505,16 @@ class AnalyzeTests(ApiTestCase):
             handler.assert_not_called()
 
 
-class LegacyRoutesStillWork(ApiTestCase):
-    """Purani app abhi bina token ke purane routes use karti hai — /v1 ke aane
-    se wo nahi tootni chahiye."""
+class OldOpenRoutesAreGone(ApiTestCase):
+    """Purane bina-token routes se koi bhi AI keys istemal kar sakta tha aur
+    /unreport-number se reports mita sakta tha. Wo wapas nahi aane chahiye."""
 
-    def test_old_routes_are_untouched(self):
+    def test_only_the_health_check_is_open(self):
         self.assertEqual(self.client.get("/").status_code, 200)
-        r = self.client.post("/check-number", json={"number": "111-111-427"})
-        self.assertEqual(r.get_json()["status"], "scam")
-        self.assertTrue(self.client.get("/number-lists").get_json()["spoofable"])
+        for method, path in [("POST", "/analyze/text"), ("POST", "/analyze/audio"),
+                             ("POST", "/check-number"), ("POST", "/report-number"),
+                             ("POST", "/unreport-number"), ("GET", "/number-lists")]:
+            self.assertEqual(self.client.open(path, method=method).status_code, 404, path)
 
 
 class ConfigTests(unittest.TestCase):

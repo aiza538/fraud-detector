@@ -3,59 +3,22 @@
 #   python -m unittest tests.test_phone_rules
 import json
 import os
-import re
 import unittest
 
 import phone_rules
 from tests import test_group_messages as engine
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-KOTLIN_RULES = os.path.join(
-    REPO_ROOT, "FraudGuardExpo", "modules", "expo-call-guard", "android", "src", "main",
-    "java", "expo", "modules", "callguard", "TextRules.kt")
+ANDROID_MAIN = os.path.join(REPO_ROOT, "FraudGuardExpo", "modules", "expo-call-guard",
+                            "android", "src", "main")
+KOTLIN_RULES = os.path.join(ANDROID_MAIN, "java", "expo", "modules", "callguard", "TextRules.kt")
+# App ke andar ki copy — internet na ho, ya server se abhi kuch na aaya ho, to yahi chalti hai.
+BUNDLED_RULES = os.path.join(ANDROID_MAIN, "assets", "phone_rules.json")
 
 # Anchor jo rule ke keywords me nahi hai kabhi match nahi ho sakta. Ye ek app
 # me pehle se maujood hai; rule ka behaviour badalna team ka faisla hai, is
 # liye yahan sirf darj hai. Naye rules me ye ghalti test rok deta hai.
 KNOWN_DEAD_ANCHORS = {("whatsapp_ban_hoax", "verification code")}
-
-RULE_IDS = ["whatsapp_ban_hoax", "investment_group", "voice_clone_family_emergency",
-            "money_otp_harvest", "credential_harvest", "lucky_draw_prize"]
-
-
-def rules_from_kotlin(source):
-    """TextRules.kt ke hardcoded lists ko usi shape me nikalta hai jo JSON ki hai."""
-    code = "\n".join(l for l in source.splitlines() if not l.strip().startswith("//"))
-    strings = lambda body: re.findall(r'"([^"]*)"', body)
-    lists = {name: strings(body) for name, body in
-             re.findall(r"private val ([A-Z_]+) = listOf\(([^()]*)\)", code)}
-    rules = [
-        {"id": rule_id, "keywords": strings(kw), "min_match": int(n),
-         "anchors": strings(anchors), "label": label}
-        for rule_id, (kw, n, anchors, label) in zip(RULE_IDS, re.findall(
-            r'Rule\(\s*listOf\(([^()]*)\),\s*(\d+),\s*listOf\(([^()]*)\),\s*"([^"]*)",\s*\)',
-            code))
-    ]
-    return {
-        "schema": 1,
-        "rules": rules,
-        "otp": {
-            "delivery_hints": lists["OTP_DELIVERY_HINTS"],
-            "negation_hints": lists["OTP_NEGATION_HINTS"],
-            "words": lists["OTP_WORDS"],
-            "give_send": lists["GIVE_WORDS_SEND"],
-            "give_demand": lists["GIVE_WORDS_DEMAND"],
-            "weak_action": lists["WEAK_ACTION_WORDS"],
-            "urgency": lists["URGENCY_WORDS"],
-        },
-        "links": {
-            "abuse_tlds": lists["ABUSE_TLDS"],
-            "official_suffixes": lists["OFFICIAL_SUFFIXES"],
-            "official_hosts": lists["OFFICIAL_HOSTS"],
-            "generic_trusted": lists["GENERIC_TRUSTED"],
-            "brand_tokens": lists["BRAND_TOKENS"],
-        },
-    }
 
 
 # Roz marra ke aam messages. Background scanner in par CHUP rehna chahiye —
@@ -84,15 +47,16 @@ EVERYDAY_MESSAGES = [
 
 
 class PhoneRulesTests(unittest.TestCase):
-    def test_json_matches_the_rules_compiled_into_the_app(self):
-        # Jab tak Kotlin apne hardcoded lists use karta hai, dono ek jaise rehne
-        # chahiye. Kotlin ke JSON load karne ke baad ye test bundled copy ko
-        # dekhega.
+    def test_app_ships_the_same_rules_as_the_server(self):
+        with open(BUNDLED_RULES, "rb") as bundled, open(phone_rules.RULES_FILE, "rb") as server:
+            self.assertEqual(
+                bundled.read(), server.read(),
+                "backend/data/phone_rules.json badli hai — app ki copy (assets/phone_rules.json) bhi update karein")
+
+    def test_kotlin_has_no_second_copy_of_the_rules(self):
+        # Pehle rules Kotlin me haath se likhi thin aur server se alag ho gayi thin.
         with open(KOTLIN_RULES, encoding="utf-8") as f:
-            expected = rules_from_kotlin(f.read())
-        self.assertEqual(len(expected["rules"]), len(RULE_IDS))
-        actual = {k: v for k, v in phone_rules.PAYLOAD.items() if k != "version"}
-        self.assertEqual(actual, expected)
+            self.assertNotIn('listOf("', f.read(), "rules phone_rules.json me rakhein, Kotlin code me nahi")
 
     def test_every_rule_is_well_formed(self):
         for rule in phone_rules.PAYLOAD["rules"]:

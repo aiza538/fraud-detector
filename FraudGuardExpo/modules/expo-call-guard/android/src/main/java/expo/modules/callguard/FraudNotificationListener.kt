@@ -135,9 +135,9 @@ class FraudNotificationListener : NotificationListenerService() {
 
         val label = when (severity) {
             NumberRules.Severity.SCAM ->
-                "Community-reported scam number ne WhatsApp se call ki — bank/authority kabhi WhatsApp par call nahi karta."
+                "A community-reported scam number called you on WhatsApp. Banks and authorities never call on WhatsApp."
             else ->
-                "Unverified UAN-style number ne WhatsApp se call kiya — banks/authorities WhatsApp par call nahi karti. OTP ya paisa maange to scam hai."
+                "An unverified UAN-style number called you on WhatsApp. Banks and authorities never call on WhatsApp. If they ask for an OTP or money, it is a scam."
         }
         FraudNotifier.show(this, number, label, severity.name.lowercase())
         CallGuardModule.emitCallDetected(number, severity.name.lowercase(), "whatsapp", true)

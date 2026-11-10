@@ -120,12 +120,12 @@ export default function AlertScreen() {
 
         <View style={styles.tipsCard}>
           <Text style={styles.tipsTitle}>🛡️ Safety Tips</Text>
-          <Text style={styles.tip}>• Banks kabhi OTP ya PIN nahi maangte</Text>
+          <Text style={styles.tip}>• Banks never ask for your OTP or PIN</Text>
           <Text style={styles.tip}>
-            • JazzCash/Easypaisa ka staff passwords nahi poochta
+            • JazzCash and Easypaisa staff never ask for passwords
           </Text>
           <Text style={styles.tip}>
-            • Pareshan mat hon — call kaat dein aur 1991 pe report karein
+            • Stay calm: hang up and report it to 1991
           </Text>
         </View>
 
@@ -135,13 +135,13 @@ export default function AlertScreen() {
         <View style={styles.fiaCard}>
           <Text style={styles.fiaTitle}>🚔 FIA Cyber Crime Wing</Text>
           <Text style={styles.fiaText}>
-            Complaint darj karne ke liye number aur details FIA tak bhejni
-            hongi. Official helpline 1991 (Mon–Fri 8am–4pm).
+            To file a complaint, send the number and details to the FIA.
+            Official helpline 1991 (Mon–Fri, 8am–4pm).
           </Text>
           <TouchableOpacity
             style={[styles.button, styles.fiaButton]}
             onPress={() => openFia(FIA_PORTAL_URL)}>
-            <Text style={styles.buttonText}>🚔 FIA par complaint karein</Text>
+            <Text style={styles.buttonText}>🚔 File a complaint with the FIA</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.button, styles.fiaEmailButton]}
@@ -149,7 +149,7 @@ export default function AlertScreen() {
               openFia(buildEmailLink({ number, message, channel: source }))
             }>
             <Text style={styles.buttonText}>
-              ✉️ Email se FIA ko bhejein
+              ✉️ Email the FIA
             </Text>
           </TouchableOpacity>
         </View>
@@ -158,23 +158,23 @@ export default function AlertScreen() {
           <TouchableOpacity
             style={[styles.button, styles.reportButton]}
             onPress={handleReport}>
-            <Text style={styles.buttonText}>🚩 Community mein report karein</Text>
+            <Text style={styles.buttonText}>🚩 Report to the community</Text>
           </TouchableOpacity>
         ) : (
           <View style={[styles.button, styles.reportedButton]}>
-            <Text style={styles.buttonText}>✓ Community report darj</Text>
+            <Text style={styles.buttonText}>✓ Reported to the community</Text>
           </View>
         )}
 
         <Text style={styles.consensusNote}>
-          Community report se number tab block hota hai jab 5 alag users
-          report karein — taake ek galti se koi number block na ho.
+          A number is only blocked for everyone after 5 different users
+          report it, so a single mistake can never block a number.
         </Text>
 
         {reportError && (
           <Text style={styles.errorText}>
-            Report nahi ja saka — backend se connect karein aur dobara try
-            karein.
+            The report could not be sent. Check your connection and try
+            again.
           </Text>
         )}
 

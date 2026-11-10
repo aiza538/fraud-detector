@@ -40,7 +40,8 @@ async function request(path, options = {}) {
     session = await getSession();
     response = await send(path, options, session.token);
   }
-  if (response.status === 204) return null;
+  // 204 = kuch wapas nahi; 304 = jo phone ke paas hai wahi abhi bhi sahi hai.
+  if (response.status === 204 || response.status === 304) return null;
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new ApiError(
@@ -107,6 +108,15 @@ export function getNumberLists() {
   return request("/number-lists");
 }
 
+/** Message scanner ki rules. `version` phone par lagi rules ka version hai;
+ *  server par kuch naya na ho to null aata hai (304, khali jawab). */
+export function getRules(version) {
+  return request(
+    "/rules",
+    version ? { headers: { "If-None-Match": `"${version}"` } } : {},
+  );
+}
+
 export function requestEmailCode(email) {
   return post("/auth/email/start", { email });
 }
@@ -118,9 +128,16 @@ export async function verifyEmailCode(code) {
   return session;
 }
 
-/** { verified, admin, created_at } */
+/** { id, verified, admin, created_at, premium, premium_until,
+ *    limits: {analyze_text, analyze_audio}, used_today: {...} } */
 export function getAccount() {
   return request("/account");
+}
+
+/** Khareedari/restore ke baad: server RevenueCat se khud check karta hai.
+ *  Jawab wahi account object hai jo getAccount() deta hai. */
+export function refreshPremium() {
+  return request("/premium/refresh", { method: "POST" });
 }
 
 export async function deleteAccount() {

@@ -1,6 +1,9 @@
 package expo.modules.callguard
 
 import android.content.Context
+import android.util.Log
+import org.json.JSONArray
+import org.json.JSONObject
 
 object TextRules {
     private data class Rule(
@@ -22,65 +25,121 @@ object TextRules {
         val label: String,
     )
 
-    // backend/data/scam_patterns.json ke WhatsApp rules ka offline mirror.
-    // Har rule ka `anchors` wahi hai jo backend pattern me hai.
-    private val RULES = listOf(
-        Rule(
-            listOf("whatsapp", "ban", "verification", "code", "24 hour", "band", "recover", "forward"),
-            3,
-            listOf("verification code", "24 hour", "recover", "band"),
-            "WhatsApp account ban hoax — verification code mangna hijacking attempt hai",
-        ),
-        Rule(
-            listOf("invest", "profit", "trading", "group", "dollar", "daily", "return", "fee", "telegram"),
-            3,
-            listOf("invest", "profit", "trading", "telegram"),
-            "Investment group scam — guaranteed daily profit Ponzi fraud hai",
-        ),
-        Rule(
-            // "beta" / "hospital" / "emergency" aam family baat ke lafz hain —
-            // anchor sirf tab: "meri awaz" (voice clone), ya paise/udhaar maanga gaya.
-            listOf("meri awaz", "voice", "audio message", "beta", "bachi", "loan", "udhaar", "paise bhej", "emergency", "hospital"),
-            3,
-            listOf("meri awaz", "loan", "udhaar", "paise bhej"),
-            "Cloned voice / family emergency scam — voice message identity proof nahi",
-        ),
-        Rule(
-            listOf(
-                "otp", "bhij", "bhej", "paise", "jaldi", "foran", "easypaisa", "jazzcash",
-                "account detail", "atm card",
-            ),
-            3,
-            listOf("otp", "easypaisa", "jazzcash", "account detail", "atm card"),
-            "Money/OTP harvesting message — koi bhi OTP ya payment request verify karke hi bhejein",
-        ),
-        Rule(
-            // "Otp number bhij dy, account secure bnna hy" — 2 credential signals ka
-            // combo hi kaafi hai; 3 keywords wala shart Roman Urdu ke chhote messages
-            // par poori nahi hoti thi.
-            //
-            // Anchor zaroori hai: "account block" / "account secure" aam bank-support
-            // baat ke lafz hain. Pehle minMatch=2 bina anchor ke "mera account block
-            // ho gaya, account secure rakhein" jaisi NORMAL message scam kehlaati thi.
-            listOf(
-                "otp", "verification code", "atm card", "card number", "cnic",
-                "account detail", "bank account", "account secure", "account block",
-                "account band", "account freeze",
-            ),
-            2,
-            listOf("otp", "verification code", "atm card", "card number", "cnic", "account detail", "bank account"),
-            "Credential harvesting attempt — bank/authority OTP, ATM details ya CNIC KABHI nahi mangta",
-        ),
-        Rule(
-            // Pakistan-specific: unknown SMS/WhatsApp reward scams (call back bait).
-            // Anchor sirf actual reward/lottery claim — "claim"/"win" aam lafz hain
-            // ("I claim that...", "winning habits", "Eid Mubarak") inhe anchor nahi banaya.
-            listOf("lucky draw", "luckydraw", "prize bond", "prizebond", "coupon", "win", "won", "jeet", "bike", "motorbike", "scooty", "mobile phone", "lottery", "cash price", "cash prize", "inam", "mubarak", "rabta", "claim", "winner"),
-            3,
-            listOf("lucky draw", "luckydraw", "prize bond", "prizebond", "lottery", "cash prize", "cash price", "winner", "inam", "rabta"),
-            "Lucky draw / prize scam — unknown SMS ka 'bike/cash jeet gaye' nara fake lottery bait hai, call-back se fraud hota hai",
-        ),
+    // --- Rules ka data ----------------------------------------------------------
+    //
+    // Saare keywords, anchors aur word lists `phone_rules.json` me hain — wahi
+    // file jo server `/v1/rules` par deta hai (backend/data/phone_rules.json).
+    // App ke andar us ki ek copy (assets/phone_rules.json) hamesha hoti hai;
+    // server se nayi version aaye to wo SharedPreferences me save hoti hai aur
+    // usi ko istemal kiya jata hai. Is tarah rules naye app release ke baghair
+    // update ho jate hain, aur internet na ho to bhi purani copy chalti hai.
+
+    private class RuleSet(
+        val rules: List<Rule>,
+        val abuseTlds: List<String>,
+        val officialSuffixes: List<String>,
+        val officialHosts: List<String>,
+        val genericTrusted: List<String>,
+        val brandTokens: List<String>,
+        val otpDeliveryHints: List<String>,
+        val otpNegationHints: List<String>,
+        val otpWords: List<String>,
+        val giveSend: List<String>,
+        val giveDemand: List<String>,
+        val weakAction: List<String>,
+        val urgency: List<String>,
     )
+
+    /** Is version ki app sirf isi schema ki file samajhti hai. */
+    private const val SCHEMA = 1
+    private const val ASSET = "phone_rules.json"
+    private const val PREFS = "call_guard_rules"
+    private const val KEY_JSON = "text_rules_json"
+    private const val KEY_VERSION = "text_rules_version"
+
+    @Volatile
+    private var current: RuleSet? = null
+
+    private val data: RuleSet
+        get() = current ?: error("TextRules.ensureLoaded() pehle call karein")
+
+    fun ensureLoaded(context: Context) {
+        if (current == null) reload(context)
+    }
+
+    @Synchronized
+    private fun reload(context: Context) {
+        val synced = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_JSON, null)
+        current = synced?.let { parse(it) }
+            ?: parse(context.assets.open(ASSET).bufferedReader(Charsets.UTF_8).use { it.readText() })
+            ?: error("Bundled $ASSET parse nahi hui")
+    }
+
+    /**
+     * Server se aayi rules file save karo. Ghalat/adhoori file (ya naya schema
+     * jo ye app nahi samajhti) kabhi save nahi hoti — purane rules chalte rehte hain.
+     * Return: true agar nayi rules lag gayin.
+     */
+    @Synchronized
+    fun saveDownloaded(context: Context, json: String): Boolean {
+        val parsed = parse(json) ?: return false
+        val version = try { JSONObject(json).optString("version") } catch (e: Exception) { "" }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_JSON, json)
+            .putString(KEY_VERSION, version)
+            .apply()
+        current = parsed
+        return true
+    }
+
+    /** Phone par lagi hui downloaded rules ka version (server se "kuch naya?" poochne ke liye). */
+    fun downloadedVersion(context: Context): String? =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_VERSION, null)
+
+    private fun strings(array: JSONArray): List<String> =
+        (0 until array.length()).map { array.getString(it) }
+
+    private fun parse(json: String): RuleSet? = try {
+        val root = JSONObject(json)
+        if (root.optInt("schema") != SCHEMA) {
+            null
+        } else {
+            val otp = root.getJSONObject("otp")
+            val links = root.getJSONObject("links")
+            val rulesJson = root.getJSONArray("rules")
+            val rules = (0 until rulesJson.length()).map { i ->
+                val r = rulesJson.getJSONObject(i)
+                Rule(
+                    strings(r.getJSONArray("keywords")),
+                    r.getInt("min_match"),
+                    strings(r.getJSONArray("anchors")),
+                    r.getString("label"),
+                )
+            }
+            // Khali rules = scanner chup. Aisi file ko rules nahi maana jata.
+            if (rules.isEmpty()) null else RuleSet(
+                rules = rules,
+                abuseTlds = strings(links.getJSONArray("abuse_tlds")),
+                officialSuffixes = strings(links.getJSONArray("official_suffixes")),
+                officialHosts = strings(links.getJSONArray("official_hosts")),
+                genericTrusted = strings(links.getJSONArray("generic_trusted")),
+                brandTokens = strings(links.getJSONArray("brand_tokens")),
+                otpDeliveryHints = strings(otp.getJSONArray("delivery_hints")),
+                otpNegationHints = strings(otp.getJSONArray("negation_hints")),
+                otpWords = strings(otp.getJSONArray("words")),
+                giveSend = strings(otp.getJSONArray("give_send")),
+                giveDemand = strings(otp.getJSONArray("give_demand")),
+                weakAction = strings(otp.getJSONArray("weak_action")),
+                urgency = strings(otp.getJSONArray("urgency")),
+            )
+        }
+    } catch (e: Exception) {
+        Log.w("CallGuard", "phone rules parse failed: ${e.message}")
+        null
+    }
+
+    private val RULES: List<Rule> get() = data.rules
 
     // --- Link analysis -------------------------------------------------------
     //
@@ -99,24 +158,13 @@ object TextRules {
     // Sirf TLD dekh ke flag lagana = har nayi company ko scam kehna. Ab in
     // host par tabhi alert hai jab brand-token copy-cat ya credentials@host
     // jaisa POSITIVE impersonation signal bhi ho (niche `hasBrandToken`).
-    private val ABUSE_TLDS = listOf(
-        ".tk", ".ml", ".ga", ".cf", ".gq", ".xyz", ".top", ".click", ".link", ".buzz",
-        ".icu", ".vip", ".quest", ".cyou",
-    )
+    private val ABUSE_TLDS: List<String> get() = data.abuseTlds
 
     // Sarkari/talebmi domains kabhi "unknown" shak ke qabil nahi
-    private val OFFICIAL_SUFFIXES = listOf(".gov.pk", ".gob.pk", ".edu.pk", ".gov", ".gob")
+    private val OFFICIAL_SUFFIXES: List<String> get() = data.officialSuffixes
 
     // Bank/wallet/authority ki ASLI domains
-    private val OFFICIAL_HOSTS = listOf(
-        "hbl.com", "ubl.com.pk", "nbp.com.pk", "mcb.com.pk", "alliedbank.com", "abl.com",
-        "bankalfalah.com", "meezanbank.com", "bop.com.pk", "sc.com", "bankislami.com.pk",
-        "faysalbank.com", "askari.com", "soneribank.com", "hmb.com.pk", "summitbank.com.pk",
-        "karobank.com.pk", "sindhbank.gov.pk", "easypaisa.com.pk", "esappk.com",
-        "jazzcash.com.pk", "jazz.com.pk", "zong.com.pk", "ufone.com", "telia.com.pk",
-        "nadra.gov.pk", "fia.gov.pk", "fbr.gov.pk", "pta.gov.pk", "bisp.gov.pk",
-        "sbp.org.pk", "complaint.sbp.org.pk", "sadapay.pk", "nayapay.com.pk",
-    )
+    private val OFFICIAL_HOSTS: List<String> get() = data.officialHosts
 
     // Aapke/hamare apne saved numbers — inke links legitimate hain (bank statement,
     // Daraz order, govt portal). Link analysis in skip kar deta hai.
@@ -133,18 +181,9 @@ object TextRules {
     }
 
     // In lafzon ka host mein hona, official domain na hone par = impersonation
-    private val BRAND_TOKENS = listOf(
-        "hbl", "nbp", "mcb", "ubl", "alfalah", "meezan", "islami", "askari", "faysal",
-        "soneri", "jamhoor", "samba", "silkbank", "kmb", "summit", "karo", "citi",
-        "standardchartered", "easypaisa", "jazzcash", "jazz", "zong", "ufone", "telia",
-        "nadra", "fbr", "fia", "pta", "bisp", "ehsaas", "statebank", "sbp", "sadapay",
-        "nepcard", "omnipay", "finja", "police", "court", "tax",
-    )
+    private val BRAND_TOKENS: List<String> get() = data.brandTokens
 
-    private val GENERIC_TRUSTED = listOf(
-        "facebook.com", "instagram.com", "whatsapp.com", "google.com", "youtube.com",
-        "twitter.com", "x.com", "linkedin.com", "microsoft.com", "apple.com", "apple.co",
-    )
+    private val GENERIC_TRUSTED: List<String> get() = data.genericTrusted
 
     private val IP_HOST = Regex("""^\d{1,3}(\.\d{1,3}){3}$""")
 
@@ -180,13 +219,13 @@ object TextRules {
             if (OFFICIAL_SUFFIXES.any { host.endsWith(it) }) continue
 
             val reason = when {
-                IP_HOST.matches(host) -> "link direct IP address par khula raha hai"
-                authorityOf(url).contains("@") -> "link mein chhupa hua address (credentials@domain) hai"
-                ABUSE_TLDS.any { host.endsWith(it) } -> "host free/abuse-host TLD par hai ($host)"
-                hasBrandToken(host) -> "host mein bank/sarkari idare ka naam hai lekin ye unki official domain nahi ($host)"
+                IP_HOST.matches(host) -> "the link opens a raw IP address"
+                authorityOf(url).contains("@") -> "the link hides its real address (credentials@domain)"
+                ABUSE_TLDS.any { host.endsWith(it) } -> "the site uses a domain ending that scammers often abuse ($host)"
+                hasBrandToken(host) -> "the site uses a bank or government name but is not their official website ($host)"
                 else -> continue
             }
-            return "Suspicious link — $reason. Is par click karne se pehle bank ki official helpline se confirm karein."
+            return "Suspicious link — $reason. Confirm with the official helpline before you open it."
         }
         return null
     }
@@ -196,11 +235,7 @@ object TextRules {
     // Scam OTP *maangta* hai; bank OTP *deta* hai aur "do not share" likhta hai.
     // Ye distinction na hone se har official OTP/alert SMS "credential harvesting"
     // kehla raha tha.
-    private val OTP_DELIVERY_HINTS = listOf(
-        "do not share", "don't share", "donot share", "never share", "not share",
-        "share na kare", "share mat kare", "share na kr", "kisi ke sath share",
-        "kisi ko na", "for your security", "for the security", "not authorized",
-    )
+    private val OTP_DELIVERY_HINTS: List<String> get() = data.otpDeliveryHints
 
     private fun looksLikeOtpDelivery(text: String): Boolean =
         Regex("""\b\d{4,8}\b""").containsMatchIn(text) &&
@@ -208,29 +243,18 @@ object TextRules {
 
     // Roman Urdu spelling variants: "bhij dy" aur "bhej dein" ek hi request hain,
     // magar plain contains() mein ye match nahi hote — isi se OTP scams miss hote thay.
-    private val OTP_WORDS = listOf(
-        "otp", "one time password", "one-time password", "verification code", "otp number", "code bata",
-    )
-    private val GIVE_WORDS_SEND = listOf(
-        "bhej", "bhij", "bej", "bheeg", "bhejna", "bhejo", "send", "forward", "share",
-        "dena", "deina", "dein", "dijiye", "day", "de", "dy", "di", "do",
-    )
+    private val OTP_WORDS: List<String> get() = data.otpWords
+    private val GIVE_WORDS_SEND: List<String> get() = data.giveSend
 
     // Tier A me OTP + "bhej do" / "share karein" / "code bata" / "maangein".
-    private val GIVE_WORDS_DEMAND = listOf(
-        "maang", "mang", "chahiye", "chahe", "milwa", "mila", "bataye", "bataiye",
-    )
+    private val GIVE_WORDS_DEMAND: List<String> get() = data.giveDemand
 
     // Tier B — kamzor signal. Ye AKELA scam nahi: bank ki apni notification bhi
     // "OTP verify karein" likhti hai. Inhe sirf tab amber dena hai jab link ya
     // urgency bhi ho. Pehle ye sab GIVE_WORDS me thay, jis se har official
     // OTP notification "OTP harvesting" kehlaati thi.
-    private val WEAK_ACTION_WORDS = listOf(
-        "enter", "fill", "verify", "activate", "update", "click", "submit", "karein", "karen", "karo",
-    )
-    private val URGENCY_WORDS = listOf(
-        "foran", "jaldi", "abhi", "turant", "immediately", "right now", "expires", "expire",
-    )
+    private val WEAK_ACTION_WORDS: List<String> get() = data.weakAction
+    private val URGENCY_WORDS: List<String> get() = data.urgency
 
     // Chhoti tokens (de/dy/do/di) ko word-boundary se match karo, warna "department"
     // jaisi words mein false positive milega
@@ -275,15 +299,7 @@ object TextRules {
      * Bina iske "security ke liye OTP ka maangna nahi chahiye" jaisi NORMAL
      * message bhi "OTP harvesting" alert bana deti thi.
      */
-    private val OTP_NEGATION_HINTS = listOf(
-        "do not share", "don't share", "donot share", "never share", "not share",
-        "share na kare", "share na kro", "share na karo", "share mat kare",
-        "mat batao", "mat batana", "mat bhejo", "mat bhejein", "mat dein", "mat do",
-        "kisi ko mat", "kisi ko nahi", "kisi ko na bata",
-        "maangna nahi", "mangna nahi", "nahi mangna", "koi maang", "kabhi",
-        "hum nahi", "hum kabhi",
-        "do not give", "don't give", "no one will ask",
-    )
+    private val OTP_NEGATION_HINTS: List<String> get() = data.otpNegationHints
 
     private fun mentionsDoNotShare(text: String): Boolean =
         looksLikeOtpDelivery(text) || OTP_NEGATION_HINTS.any { text.contains(it) }
@@ -299,14 +315,14 @@ object TextRules {
         if (!hasAnyWord(l, OTP_WORDS)) return null
 
         if (hasAnyWord(l, GIVE_WORDS_SEND) || hasAnyWord(l, GIVE_WORDS_DEMAND)) {
-            return "OTP harvesting attempt — unknown number OTP/code maang raha hai. Koi OTP kabhi kisi ke sath share NAHI karna, bank/authority kabhi OTP nahi maangta."
+            return "OTP theft attempt — an unknown sender is asking for your OTP or code. Never share an OTP; banks and authorities never ask for it."
         }
 
         if (hasAnyWord(l, WEAK_ACTION_WORDS)) {
             val hasLink = URL_REGEX.containsMatchIn(l)
             val urgent = hasAnyWord(l, URGENCY_WORDS)
             if (hasLink || urgent) {
-                return "OTP ke saath link ya foran-action maanga gaya hai — bank ki official helpline se confirm karein."
+                return "This message asks you to use an OTP through a link or urgently. Confirm with your bank's official helpline first."
             }
         }
         return null
@@ -340,6 +356,7 @@ object TextRules {
         trustedSender: Boolean = false,
         isGroup: Boolean = false,
     ): Pair<String, String>? {
+        ensureLoaded(context)
         val full = "$title $body".lowercase()
 
         // Saved contact / trusted group se aayi message — koi alert nahi.
@@ -370,7 +387,7 @@ object TextRules {
         // "Class 2024 batch" me ka "2024" number samajh ke check hota tha.
         val senderNumber = extractSenderNumber(title) ?: return null
         if (NumberRules.classify(senderNumber, context) == NumberRules.Severity.SCAM)
-            return "Sender number community-reported scam hai" to NumberRules.Severity.SCAM.name.lowercase()
+            return "The sender's number is a community-reported scam number" to NumberRules.Severity.SCAM.name.lowercase()
         return null
     }
 

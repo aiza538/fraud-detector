@@ -73,7 +73,7 @@ fraud-detector/
 | **Web Frontend**| React 19, Vite, Tailwind CSS v4, Framer Motion, Lucide Icons | Responsive modern web UI |
 | **Browser Ext.** | Chrome Extensions Manifest V3, `@crxjs/vite-plugin` | In-browser chat protection on WhatsApp Web |
 | **Mobile App** | React Native 0.81, Expo SDK 54, Expo Router v6, TypeScript | Universal cross-platform mobile app |
-| **Native Android**| Kotlin, Android `TelephonyManager`, `NotificationListenerService` | Background incoming call & message interception |
+| **Native Android**| Kotlin, Android `CallScreeningService` (Android 10+), `NotificationListenerService` | Background incoming call & message interception |
 
 ---
 
@@ -81,26 +81,19 @@ fraud-detector/
 
 ### 1. Backend API (`/backend`)
 The backend operates as the central intelligence engine:
-- **`main.py`**:
-  - `/analyze/text`: Accepts text or chat extracts, checks rule patterns first, then queries Gemini.
-  - `/analyze/audio`: Accepts audio files (up to 25MB), transcribes via AssemblyAI, then analyzes.
-  - `/check-number`: Evaluates phone numbers against 4 reputation tiers: `safe` (verified bank/saved contact), `scam` (community confirmed or spoofed bank UAN), `suspicious` (unverified UAN), or `unknown` (regular mobile numbers).
-  - `/report-number`: Rate-limited community reporting requiring a threshold of 5 distinct hashed IP addresses and 180-day decay.
-  - `/unreport-number`: Appeal/removal mechanism to unblock erroneously reported numbers.
-  - `/number-lists`: Exports synced whitelists and spoofable variants to the mobile app for offline on-device screening.
-  - These unversioned routes are the **legacy API** (no token). They stay only until the mobile app moves to `/v1`.
+- **`main.py`**: The Flask app setup only (proxy handling, database, CORS) plus an open health check at `/`. The old unversioned routes without a token were removed on 15 October 2026; every API route is in `/v1`.
 - **`api_v1.py`** — the token-protected `/v1` API (database-backed):
   - `POST /v1/auth/anonymous`: The app calls this on first launch and receives its own token. No login screen.
   - `POST /v1/auth/refresh`, `GET /v1/account`, `DELETE /v1/account`: Renew the token, read account state, delete the account and its data.
   - `POST /v1/auth/email/start` and `/v1/auth/email/verify`: 6-digit email code (10-minute expiry, 5 attempts). Needed only to report a number.
   - `POST /v1/analyze/text`, `POST /v1/analyze/audio`: Same analysis as before, with per-user and per-network daily limits.
-  - `POST /v1/check-number`, `GET /v1/number-lists`: Same screening rules as the legacy routes.
+  - `POST /v1/check-number`, `GET /v1/number-lists`: 4-level number screening and the phone's offline lists.
   - `GET /v1/rules`: The phone's background message-scanner rules (`data/phone_rules.json`). This and `/v1/number-lists` send an `ETag`, so the phone re-downloads only when something changed.
   - `POST /v1/report-number`: Verified users only. A number is confirmed after 5 reports from different networks, by reporters who verified their email at least 48 hours earlier. Reports expire after 180 days.
   - `POST /v1/admin/unreport-number`: Admins only (emails listed in `ADMIN_EMAILS`).
 - **`security.py`**: Token signing and checking, IP/email hashing, daily limits.
 - **`db.py`** and **`migrations/`**: Database tables (users, reports, usage counters, email codes) and Alembic migrations.
-- **`number_rules.py`**: The number-screening rules shared by the legacy and `/v1` routes.
+- **`number_rules.py`**: The number-screening rules (clean, look up, spoof check, 4-level verdict).
 - **`config.py`**: All settings, read from environment variables. In production the server refuses to start without its secrets.
 - **`fraud_detector.py`**:
   - Truncates oversized chat logs to the last 15,000 characters to prevent token exhaustion.
@@ -138,12 +131,13 @@ The production mobile implementation based on Expo SDK 54:
 - **`AnalyzerScreen.js`**: Replicates the text, file, and audio analyzer on mobile, plus adds an interactive **Number Checker** tab for verifying Pakistani phone numbers.
 - **`src/services/session.js`** and **`api.js`**: The app talks only to the `/v1` API. On first use it silently gets its own anonymous token, kept in the phone's secure storage. There is no login screen.
 - **`app/verify-email.tsx`**: One-time email code, asked for only when the user reports a number.
-- **`app/account.tsx`**: Shows whether the email is verified and lets the user delete their account and data.
+- **`app/account.tsx`**: Shows whether the email is verified, the plan and AI checks left today, and lets the user delete their account and data.
+- **`app/premium.tsx`** and **`src/services/premium.js`**: Premium plan through Google Play (RevenueCat). Protection is always free; Premium raises the daily AI checks. The server confirms every purchase with RevenueCat itself.
 - **`app/alert.tsx`**: Full-screen high-urgency alert screen triggered when a scam call or message is intercepted. Includes an emergency report button and direct links to the FIA portal and complaint email.
 - **`app/notifications.tsx`**: Alert history list reviewing past flagged calls and messages.
 - **Custom Native Module (`modules/expo-call-guard`)**:
   - Native Kotlin code running directly inside the Android OS.
-  - Intercepts incoming calls (`TelephonyManager`) and cross-references against local offline rules.
+  - Sees incoming calls through Android's Call Screening (Android 10+, after the user picks FraudGuard as the caller ID & spam app) and checks them against local offline rules. It only alerts; it never blocks or silences a call. No call-log permission is used, and Android 9 and older get no call alerts.
   - Queries local device contacts (`READ_CONTACTS`) so family, friends, and saved delivery contacts are never falsely flagged.
   - Intercepts background notifications (`NotificationListenerService`) from WhatsApp and SMS to catch scam messages as soon as they arrive on the phone.
 
@@ -184,12 +178,12 @@ While the core scam detection logic is robust, several parts of the codebase rem
 1. **Empty Frontend Dashboard**:
    - `frontend/src/pages/Dashboard.jsx` exists as an empty 0-byte file. The web app currently has no analytics page or overview of trending scams.
 2. **Web Frontend Missing Number Checker**:
-   - The Flask backend has full support for phone number screening (`/check-number`, `/report-number`, `/unreport-number`), and the Expo mobile app has a UI for it. However, the Web frontend (`frontend/src/services/api.js`) has not implemented these endpoints, meaning web users cannot check phone numbers.
+   - The Flask backend has full support for phone number screening (`/v1/check-number`, `/v1/report-number`), and the Expo mobile app has a UI for it. However, the Web frontend (`frontend/src/services/api.js`) has not implemented these endpoints, meaning web users cannot check phone numbers.
 3. **Hardcoded API URLs & Environment Configuration**:
    - `frontend/src/services/api.js` and `frontend/src/background.js` have hardcoded URLs pointing to Hugging Face Spaces (`https://l-law-liet-fraudguard-pk-backend.hf.space`) rather than using Vite environment variables (`import.meta.env.VITE_API_BASE_URL`).
    - `manifest.json` does not include `hf.space` in `host_permissions`, which can cause extension network errors if the extension is packed for production.
-4. **Legacy Routes Still Use JSON File Storage**:
-   - The `/v1` API stores reports in a database. The legacy unversioned routes still write `reported_numbers.json` to local disk, which is lost on container restarts. They will be removed once the mobile app uses `/v1`.
+4. **Web App and Extension Need the `/v1` API**:
+   - They still call the old Hugging Face server with the old routes, which no longer exist on the live Render server. To use the live server they need the same anonymous-token client as the mobile app.
 5. **Basic Chrome Extension DOM Handling**:
    - `frontend/src/content.js` relies on a generic `alert()` modal and a basic DOM selector (`span[dir="ltr"]`). It does not highlight suspicious chat bubbles directly on WhatsApp Web.
 6. **Audio Transcription Language Nuance**:
@@ -268,6 +262,7 @@ python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_ph
 | `MAIL_FROM` | Sender for email codes, on the verified domain, e.g. `FraudGuard AI <no-reply@yourdomain.com>` |
 | `RESEND_API_KEY`, `BREVO_API_KEY` | Email providers. Resend is tried first, Brevo if it fails. Without a sender and at least one key, email verification stays off in production |
 | `TRUSTED_PROXY_HOPS` | Number of proxies in front of the server. **Must be `3` on Render**; the default of `1` makes every request look like it came from Render's own machines |
+| `REVENUECAT_SECRET_API_KEY` | RevenueCat secret key. Switches the Premium plan on; without it everyone is on the free plan |
 
 Also set `APP_ENV=production` and `PYTHON_VERSION=3.12.10`.
 

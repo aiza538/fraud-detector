@@ -20,10 +20,10 @@ export default function ComplaintForm({ text, number, channel }) {
       if (await Linking.canOpenURL(url)) {
         await Linking.openURL(url);
       } else {
-        Alert.alert("Link nahi khul saka", url);
+        Alert.alert("Could not open the link", url);
       }
     } catch {
-      Alert.alert("Error", "Link nahi khul saka");
+      Alert.alert("Error", "Could not open the link");
     }
   };
 
@@ -79,8 +79,8 @@ export default function ComplaintForm({ text, number, channel }) {
       </View>
 
       <Text style={styles.intro}>
-        Ye complaint FIA Cyber Crime Wing tak bhejni hogi. Neeche se seedha
-        official portal ya email par bhej sakte hain.
+        Send this complaint to the FIA Cyber Crime Wing, through the
+        official portal or by email below.
       </Text>
 
       <View style={styles.actions}>
@@ -89,7 +89,7 @@ export default function ComplaintForm({ text, number, channel }) {
           onPress={fileFiaComplaint}
           disabled={busy}>
           <Text style={styles.primaryText}>
-            🚔 FIA par complaint karein
+            🚔 File a complaint with the FIA
           </Text>
         </TouchableOpacity>
 
@@ -98,7 +98,7 @@ export default function ComplaintForm({ text, number, channel }) {
           onPress={emailFiaComplaint}
           disabled={busy}>
           <Text style={styles.secondaryText}>
-            ✉️ Email se bhejein (helpdesk.cyber@fia.gov.pk)
+            ✉️ Send by email (helpdesk.cyber@fia.gov.pk)
           </Text>
         </TouchableOpacity>
 
@@ -118,8 +118,8 @@ export default function ComplaintForm({ text, number, channel }) {
 
       <Text style={styles.disclaimer}>
         Call/Facebook/in-person: Cyber Crime HQ, National Police Foundation
-        Building, Sector G-10/4, Islamabad. 15 CCRC centres hain — nearest one
-        in-person sab se tez rasta hai. General FIA helpline{" "}
+        Building, Sector G-10/4, Islamabad. There are 15 CCRC centres; visiting
+        the nearest one in person is the fastest route. General FIA helpline{" "}
         {FIA_GENERAL_HELPLINE}.
       </Text>
     </View>

@@ -2,8 +2,6 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  PermissionsAndroid,
-  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -28,15 +26,6 @@ export default function AnalyzerScreen() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // Android 13+ pe fraud alerts dikhane ke liye notification permission zaroori
-  useEffect(() => {
-    if (Platform.OS === "android" && Platform.Version >= 33) {
-      PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-      );
-    }
-  }, []);
-
   useEffect(() => {
     if (toast) {
       const t = setTimeout(() => setToast(null), 3500);
@@ -45,6 +34,13 @@ export default function AnalyzerScreen() {
   }, [toast]);
 
   const showToast = (message, type = "info") => setToast({ message, type });
+
+  // Server ka apna message (jaise daily limit) dikhao; network par default.
+  // Free plan ki AI limit poori ho to Premium screen kholo.
+  const handleError = (err) => {
+    showToast(err.message || "Backend connection failed.", "error");
+    if (err.code === "free_limit") router.push("/premium");
+  };
 
   const handleAnalyze = async (text, channel) => {
     setLoading(true);
@@ -58,8 +54,7 @@ export default function AnalyzerScreen() {
       setResult(data);
       showToast("Analysis complete!", "success");
     } catch (err) {
-      // Server ka apna message (jaise daily limit) dikhao; network par default.
-      showToast(err.message || "Backend connection failed.", "error");
+      handleError(err);
     } finally {
       setLoading(false);
     }
@@ -77,8 +72,7 @@ export default function AnalyzerScreen() {
       setResult(data);
       showToast("File analysis complete!", "success");
     } catch (err) {
-      // Server ka apna message (jaise daily limit) dikhao; network par default.
-      showToast(err.message || "Backend connection failed.", "error");
+      handleError(err);
     } finally {
       setLoading(false);
     }
@@ -101,8 +95,7 @@ export default function AnalyzerScreen() {
       setResult(data);
       showToast("Audio analysis complete!", "success");
     } catch (err) {
-      // Server ka apna message (jaise daily limit) dikhao; network par default.
-      showToast(err.message || "Backend connection failed.", "error");
+      handleError(err);
     } finally {
       setLoading(false);
     }
@@ -149,7 +142,7 @@ export default function AnalyzerScreen() {
             onAnalyze={(text) => handleAnalyze(text, "whatsapp")}
             loading={loading}
             title="WhatsApp Chat Check"
-            subtitle="Chat ka text select → copy → yahan paste karein"
+            subtitle="Select the chat text, copy it, and paste it here"
             placeholder={
               'Paste WhatsApp message / chat here...\n\nCommon scams: "account 24 hour mein band", verification code mangna, daily profit trading group, dost ki emergency'
             }

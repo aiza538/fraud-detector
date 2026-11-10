@@ -1,8 +1,10 @@
 package expo.modules.callguard
 
+import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -30,6 +32,19 @@ class CallGuardModule : Module() {
                 )
             }
             Unit
+        }
+
+        // Server ki /v1/rules — WhatsApp/SMS scanner ke rules. false = file ghalat
+        // thi aur save nahi hui; phone par pehle wali rules chalti rahti hain.
+        AsyncFunction("setTextRules") { json: String ->
+            val context = appContext.reactContext ?: return@AsyncFunction false
+            TextRules.saveDownloaded(context, json)
+        }
+
+        // Phone par lagi downloaded rules ka version (null = abhi app ki apni copy).
+        Function("getTextRulesVersion") {
+            val context = appContext.reactContext ?: return@Function null
+            TextRules.downloadedVersion(context)
         }
 
         // Number lists change hone par phonebook cache refresh karo, taake
@@ -60,6 +75,33 @@ class CallGuardModule : Module() {
             }
         }
 
+        // Call Screening (Android 10+): user FraudGuard ko "caller ID & spam"
+        // app chune tabhi system calls dikhata hai. Purane Android par call
+        // alerts nahi hote (call log permission jaan bujh kar nahi li).
+        Function("hasCallScreeningRole") {
+            val context = appContext.reactContext ?: return@Function false
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@Function false
+            context.getSystemService(RoleManager::class.java)
+                ?.isRoleHeld(RoleManager.ROLE_CALL_SCREENING) == true
+        }
+
+        // System ka "caller ID & spam app banayein?" dialog. Jawab JS dobara
+        // hasCallScreeningRole() se dekhta hai. false = is phone par mumkin nahi.
+        AsyncFunction("requestCallScreeningRole") {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@AsyncFunction false
+            val activity = appContext.currentActivity ?: return@AsyncFunction false
+            val roles = activity.getSystemService(RoleManager::class.java)
+                ?: return@AsyncFunction false
+            if (!roles.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) return@AsyncFunction false
+            if (!roles.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)) {
+                activity.startActivityForResult(
+                    roles.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING),
+                    REQUEST_CALL_SCREENING_ROLE,
+                )
+            }
+            true
+        }
+
         Function("hasNotificationAccess") {
             val context = appContext.reactContext ?: return@Function false
             isNotificationServiceEnabled(context)
@@ -85,6 +127,8 @@ class CallGuardModule : Module() {
     }
 
     companion object {
+        private const val REQUEST_CALL_SCREENING_ROLE = 4711
+
         @Volatile
         private var instance: CallGuardModule? = null
 

@@ -71,7 +71,7 @@ class MailerTests(unittest.TestCase):
         self.assertEqual((body["from"], body["to"]), (SENDER, ["u@example.com"]))
         self.assertIn("123456", body["subject"])
         self.assertIn("123456", body["text"])
-        self.assertIn("kisi ko na batayein", body["text"])
+        self.assertIn("Do not share it", body["text"])
 
     def test_brevo_takes_over_when_resend_fails(self):
         self.settings(production=True)

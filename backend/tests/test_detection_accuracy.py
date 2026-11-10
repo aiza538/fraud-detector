@@ -38,7 +38,7 @@ OFFICIAL_DIRECTORY_FILE = os.path.join(DATA_DIR, "official_directory.json")
 # Import matching engines and helpers (supports both package and direct module imports)
 try:
     from backend.pattern_matcher import check_patterns, load_scam_patterns
-    from backend.main import (
+    from backend.number_rules import (
         clean_number,
         lookup_keys,
         _levenshtein,
@@ -49,7 +49,7 @@ try:
     )
 except ImportError:
     from pattern_matcher import check_patterns, load_scam_patterns
-    from main import (
+    from number_rules import (
         clean_number,
         lookup_keys,
         _levenshtein,

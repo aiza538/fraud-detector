@@ -19,6 +19,23 @@ export async function setNativeRules(legitimate, scam, spoofable = []) {
   await CallGuard.setRules({ legitimate, scam, spoofable });
 }
 
+/** Server ki rules file (JSON text) phone ke message scanner par lagao.
+ *  false = file ghalat thi; phone par pehle wali rules chalti rahti hain. */
+export async function setTextRules(json) {
+  if (!CallGuard) return false;
+  return CallGuard.setTextRules(json);
+}
+
+/** Phone par lagi downloaded rules ka version, ya null (app ki apni copy). */
+export function getTextRulesVersion() {
+  if (!CallGuard) return null;
+  try {
+    return CallGuard.getTextRulesVersion() ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Phonebook cache refresh — READ_CONTACTS milne ke baad call karein. */
 export async function refreshContactCache() {
   if (!CallGuard) return;
@@ -48,6 +65,26 @@ export function checkContact(number) {
     return CallGuard.checkContact(String(number));
   } catch {
     return "unknown";
+  }
+}
+
+/** Android 10+: kya FraudGuard "caller ID & spam" app hai (call alerts ke liye zaroori). */
+export function hasCallScreeningRole() {
+  if (!CallGuard) return false;
+  try {
+    return CallGuard.hasCallScreeningRole();
+  } catch {
+    return false;
+  }
+}
+
+/** System ka dialog dikhata hai. false = is phone par Call Screening mumkin nahi. */
+export async function requestCallScreeningRole() {
+  if (!CallGuard) return false;
+  try {
+    return await CallGuard.requestCallScreeningRole();
+  } catch {
+    return false;
   }
 }
 
