@@ -128,9 +128,16 @@ export async function verifyEmailCode(code) {
   return session;
 }
 
-/** { verified, admin, created_at } */
+/** { id, verified, admin, created_at, premium, premium_until,
+ *    limits: {analyze_text, analyze_audio}, used_today: {...} } */
 export function getAccount() {
   return request("/account");
+}
+
+/** Khareedari/restore ke baad: server RevenueCat se khud check karta hai.
+ *  Jawab wahi account object hai jo getAccount() deta hai. */
+export function refreshPremium() {
+  return request("/premium/refresh", { method: "POST" });
 }
 
 export async function deleteAccount() {

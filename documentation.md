@@ -234,6 +234,7 @@ All automated test suites pass without regressions:
 * **Pattern Matching Tests** (46 test cases): Validated that normal conversation messages, legitimate bank OTP SMS alerts, and telecom recharge receipts remain silent, while domestic Pakistani scams (Roman Urdu & Urdu script) and global cross-border threats (Crypto drainers, DHL/FedEx holds, Apple ID lockouts) are reliably flagged with statutory PECA citations.
 * **Group Chat & Context Screening Tests** (16 test cases): Group link suppression and 1:1 threat identification verified.
 * **`/v1` API Tests** (37 test cases, [backend/tests/test_api_v1.py](backend/tests/test_api_v1.py)): every route refuses requests without a token; forged, expired, blocked and revoked tokens are rejected; signup, daily, per-network and per-email limits hold; the email-code flow (wrong code lockout, expiry, account restore); report consensus rules; admin-only removal; delete account; `ETag`/`304` behaviour; the old open routes are gone (404); production refuses to start without secrets; the migration builds exactly the tables the code expects.
+* **Premium Tests** (15 test cases, [backend/tests/test_premium.py](backend/tests/test_premium.py)): free users get the free AI limits and never cause a RevenueCat call; phone protection is not limited by the plan; buying unlocks the premium limits only after the server itself confirms with RevenueCat; claiming premium without buying, or holding a different entitlement, does nothing; lifetime purchases; refresh is rate-limited; no key means "unavailable"; refunds, renewals and expiries are re-checked once a day, not on every request; a RevenueCat outage keeps a paying user premium; premium users skip the shared-network limit; the user id never appears in logs.
 * **Email Sending Tests** (6 test cases, [backend/tests/test_mailer.py](backend/tests/test_mailer.py)): Resend first, Brevo when Resend fails, an error when both fail, switched off in production without a sender or keys, and no code or email address in failure logs.
 * **Phone Rules Tests** (5 test cases, [backend/tests/test_phone_rules.py](backend/tests/test_phone_rules.py)): the app's bundled copy is identical to the server file; the Kotlin code holds no second copy of the rules; every rule is well formed; 19 ordinary everyday messages raise no alert.
 * **Continuous integration**: [.github/workflows/backend-tests.yml](.github/workflows/backend-tests.yml) runs all suites on every pull request that touches `backend/` or the Android module.
@@ -243,7 +244,7 @@ Run everything from `backend/`:
 python -m tests.test_pattern_matcher
 python -m tests.test_number_screening
 python -m tests.test_group_messages
-python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_phone_rules tests.test_mailer
+python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_premium tests.test_phone_rules tests.test_mailer
 ```
 
 ---
@@ -256,7 +257,8 @@ Defined in [backend/api_v1.py](backend/api_v1.py). Every route needs `Authorizat
 | :--- | :--- | :--- |
 | `POST /v1/auth/anonymous` | Anyone | Creates an anonymous account and returns its token. |
 | `POST /v1/auth/refresh` | Any token | Returns a fresh token for the same account. |
-| `GET /v1/account` | Any token | `verified`, `admin`, `created_at`. |
+| `GET /v1/account` | Any token | `id`, `verified`, `admin`, `created_at`, `premium`, `premium_until`, today's AI `limits` and `used_today`. |
+| `POST /v1/premium/refresh` | Any token | Asks RevenueCat for this account's subscription and saves it. The app calls it after a purchase or restore. 20 per account per day. |
 | `DELETE /v1/account` | Any token | Deletes the account, its reports, its pending code and its counters. |
 | `POST /v1/auth/email/start` | Any token | Sends a 6-digit code to an email address. |
 | `POST /v1/auth/email/verify` | Any token | Checks the code and marks the account verified, or restores the existing account for that email. |
@@ -304,16 +306,24 @@ A number is confirmed when counted reports come from **5 different networks** (d
 | Limit | Value |
 | :--- | :--- |
 | New anonymous accounts per network per hour | 30 |
-| Text analyses per account per day | 60 |
-| Audio analyses per account per day | 10 |
+| Text analyses per account per day | **Free: 5**, Premium: 60 |
+| Audio analyses per account per day | **Free: 1**, Premium: 10 |
 | Reports per account per day | 10 |
 | Email codes per account per day | 5 |
-| Text analyses per network per day | 300 |
-| Audio analyses per network per day | 40 |
+| Text analyses per network per day (free accounts only) | 300 |
+| Audio analyses per network per day (free accounts only) | 40 |
 | Email codes per network per hour | 10 |
 | Email codes per email address per day | 5 |
 
-Per-network limits exist because a new anonymous account is free, so a per-account limit alone can be dodged. The per-email limit stops someone guessing another person's code by cycling accounts. Days are UTC.
+Per-network limits exist because a new anonymous account is free, so a per-account limit alone can be dodged. They do not apply to Premium accounts, so a paying user on a shared office or hostel network is never blocked by other people. The per-email limit stops someone guessing another person's code by cycling accounts. Days are UTC.
+
+**Premium plan** (10 November 2026, [backend/premium.py](backend/premium.py)). Everything that protects the phone stays free: call alerts, WhatsApp/SMS scanning, number checks and reports. Premium only raises the daily AI checks (the ones that cost Gemini and AssemblyAI money). When the free limit is reached the server answers `429` with the code `free_limit`, and the app opens the Premium screen.
+
+* Payment goes through **Google Play Billing**, handled by **RevenueCat** (free until $2,500 a month in revenue, then 1%). Google keeps 15% of subscriptions.
+* The phone buys; the **server decides**. After a purchase the app calls `POST /v1/premium/refresh`, and the server asks RevenueCat's REST API (`GET /v1/subscribers/{account id}`, secret key) whether the `premium` entitlement is active and until when. What the phone says is never trusted.
+* The account id is RevenueCat's "app user id", so the subscription belongs to the account. A verified email brings the account (and its subscription) back on a new phone; "Restore purchases" also works with the same Google account.
+* Re-checks: a paying user once a day (to catch renewals, cancellations and refunds), an expired user once after expiry and then once a day. Free users never cause a RevenueCat call. If RevenueCat is down, the saved state is used, so a paying user is not dropped to free.
+* Without `REVENUECAT_SECRET_API_KEY` everyone stays on the free plan and `/v1/premium/refresh` answers `503 premium_unavailable`.
 
 **Real client IP.** Behind a proxy the server would see the proxy's address for every user. `TRUSTED_PROXY_HOPS` tells it how many proxies to trust (default 1 in production, 0 locally, where `X-Forwarded-For` is ignored so it cannot be faked).
 
@@ -349,7 +359,7 @@ Tested on 20 ordinary everyday messages, the analyzer patterns raised a scam ale
 
 | Table | Holds |
 | :--- | :--- |
-| `users` | Account id, creation time, hashed signup IP, email hash (empty if anonymous), `token_version`, `blocked`. |
+| `users` | Account id, creation time, hashed signup IP, email hash (empty if anonymous), `token_version`, `blocked`, `premium_until` (empty = free plan) and `premium_checked_at`. Migration `0002` added the two premium columns. |
 | `number_reports` | One row per account per reported number, with hashed IP, note and time. |
 | `usage_counters` | Daily counts per account, per network and per email. Yesterday's rows are deleted automatically. |
 | `email_challenges` | The one pending email code per account (hashed), with expiry and attempt count. |
@@ -370,6 +380,8 @@ Locally the server uses a SQLite file (`backend/fraudguard-dev.db`) and creates 
 | `RESEND_API_KEY`, `BREVO_API_KEY` | Email providers; Resend first, Brevo as backup. |
 | `TRUSTED_PROXY_HOPS` | Proxies in front of the server: **3 on Render** (confirmed). |
 | `GEMINI_API_KEY`, `ASSEMBLYAI_API_KEY` | As before. |
+| `REVENUECAT_SECRET_API_KEY` | RevenueCat secret API key (starts with `sk_`). Switches Premium on. |
+| `REVENUECAT_ENTITLEMENT` | Optional. Entitlement identifier in RevenueCat, default `premium`. |
 
 **Deployment: live on Render** at `https://fraud-detector-kno0.onrender.com` (free instance, Singapore, Neon Postgres), deployed 15 October 2026. The Hugging Face Space was dropped because its free plan cannot add collaborators.
 
@@ -378,20 +390,32 @@ Locally the server uses a SQLite file (`backend/fraudguard-dev.db`) and creates 
 * The free instance sleeps after 15 minutes without traffic and takes about a minute to wake. An uptime monitor pinging `/` every 10 minutes keeps it awake. Move to the Starter plan (about $7/month) at public launch.
 * **Proxy setting confirmed: `TRUSTED_PROXY_HOPS=3` on Render.** Each new account logs `signup network=<hash> forwarded_entries=<n>` (hashed, never the raw IP). With the default of 1, two sign-ups from the same laptop got different network IDs, because the server was reading the address of whichever Render machine passed the request on. With 3, three sign-ups from one laptop got the same ID, including one that sent a fake `X-Forwarded-For` (`forwarded_entries=4`), so the fake address is ignored. If Render ever changes its proxy chain, this log line is how to re-check.
 
+**Premium setup (team).** Code is done; these steps switch it on:
+
+1. Play Console → **Payments profile** (Pakistan is supported; payouts in PKR).
+2. Upload a build that contains the billing library (any build from this version on) to the **Internal testing** track. Play only allows subscription products after that.
+3. Play Console → Monetize → **Subscriptions**: create `fraudguard_premium` with a monthly and a yearly base plan, prices in PKR.
+4. Google Cloud: create a **service account**, give it access in Play Console (Users and permissions: view financial data, manage orders and subscriptions), and download its JSON key.
+5. **RevenueCat**: new project → add an Android app with package `com.fraudguard.ai` → upload the service-account JSON → import the products → create the entitlement `premium` and attach both products → create the offering `default` with a monthly and an annual package.
+6. Copy the RevenueCat **Android public SDK key** (starts with `goog_`) to expo.dev → project → Environment variables as `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` (preview and production), and the **secret key** to Render as `REVENUECAT_SECRET_API_KEY`.
+7. Play Console → Settings → **License testing**: add tester Google accounts, so test purchases are free.
+
 ---
 
 ## 12. Mobile App Changes
 
 * **App name** is FraudGuard AI (`app.json` and the home screen). **Package ID** is `com.fraudguard.ai`, confirmed by the team.
+* **App icon** (10 November 2026): white shield with a check mark and a green "AI" dot on the app's blue. All Android sizes are in `FraudGuardExpo/assets/images/` (full icon, adaptive foreground and background, themed monochrome, splash, favicon). Play Store assets are in [store-assets/](store-assets): the 512×512 store icon and the 1024×500 feature graphic. `store-assets/make_icons.py` regenerates them all from one design.
 * **Cloud builds**: `eas.json` points the `preview` and `production` profiles at the live server. `preview` produces an installable APK for testers.
 * **[session.js](FraudGuardExpo/src/services/session.js)** and **[api.js](FraudGuardExpo/src/services/api.js)**: token handling and the single `/v1` client. Server error messages (for example a daily limit) are shown to the user.
 * **[app/verify-email.tsx](FraudGuardExpo/app/verify-email.tsx)**: opens when an unverified user taps Report. After verifying, the user taps Report again.
-* **[app/account.tsx](FraudGuardExpo/app/account.tsx)**: reached from the 👤 icon on the home screen. Shows verified status, which protections are on or off, and deletes the account, the user's reports and the phone's alert history.
+* **[app/account.tsx](FraudGuardExpo/app/account.tsx)**: reached from the 👤 icon on the home screen. Shows verified status, the plan with AI checks left today, which protections are on or off, and deletes the account, the user's reports and the phone's alert history.
 * **[app/welcome.tsx](FraudGuardExpo/app/welcome.tsx)**: shown on first launch on Android. It asks for each permission one at a time (notifications, contacts, caller ID & spam app, notification access), and before each one explains why it is needed and where the data goes. Every step has "Abhi nahi" (not now), and the setup can be reopened from the account screen. This is the in-app disclosure Google Play requires for notification access and call screening. Steps that are impossible on the phone (for example calls on Android 9, or everything in Expo Go) are skipped.
 * **All user-facing text is in English** (15 October 2026): app screens, server messages from `/v1`, the verification email, and the phone's alert notifications. The sample scam messages on the analyzer stay in Roman Urdu on purpose, because that is how real scam messages arrive.
 * **No permission prompts at startup any more.** They used to fire all at once when the app opened, with no explanation. Permission helpers live in [src/services/protection.js](FraudGuardExpo/src/services/protection.js).
 * **Removed**: the old "this is my number, remove the block" button, which let anyone unblock any number.
 * **Appeal**: when a number is a community-confirmed scam, the number checker shows "This is my number — request removal". It opens an email to the support address with the number filled in; an admin then removes the reports with `/v1/admin/unreport-number`. The address comes from `EXPO_PUBLIC_SUPPORT_EMAIL` (set on expo.dev for cloud builds); without it the button is hidden.
+* **Premium** (10 November 2026): [app/premium.tsx](FraudGuardExpo/app/premium.tsx) compares the free and premium AI limits, lists Google Play's monthly and yearly prices in the local currency, and has "Restore purchases", the auto-renew disclosure and, for subscribers, "Manage subscription" (opens Google Play). [src/services/premium.js](FraudGuardExpo/src/services/premium.js) wraps the RevenueCat SDK (`react-native-purchases` 11, Google Play Billing Library 8, which Play requires). It opens from the account screen, and automatically when the analyzer hits the free limit. On every start the app compares Google Play with the server and asks the server to re-check if they differ. Needs `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`; without it (and in Expo Go or on the web) the screen says Premium can only be bought in the Play Store app. Real purchases need a development or store build.
 * **Microphone permission removed**: the app only picks existing audio files and never records, so the unused `expo-audio` package and `RECORD_AUDIO` were removed, and `app.json` blocks `RECORD_AUDIO` so no library can add it back.
 * **Removed**: two unused duplicate API files (`constants/api.ts`, `src/services/FraudAPIService.js`).
 * **Fixed**: the package lock was out of sync with `package.json`, and web mode crashed on start because the alert-history file was opened at load time.
@@ -406,9 +430,9 @@ Locally the server uses a SQLite file (`backend/fraudguard-dev.db`) and creates 
 | :--- | :--- |
 | Send real email codes | Code done. Waiting on the domain verified in Resend and Brevo, then `MAIL_FROM` and the two keys set on Render |
 | Genuine-phone check (Play Integrity) before reports count | Deferred: it can only be tested once the app is installed from Google Play. Verified email, the 48-hour wait, distinct networks and daily caps already guard reports |
-| App icon | Still the default Expo icon (`FraudGuardExpo/assets/images/`); needs a real FraudGuard AI icon before the store |
 | Appeal button shows in the app | The team setting `EXPO_PUBLIC_SUPPORT_EMAIL` on expo.dev, and `ADMIN_EMAILS` on Render |
-| Privacy policy | Team |
+| Premium purchases work | The team's Play payments profile, subscription products, RevenueCat project and the two keys (section 11, "Premium setup") |
+| Privacy policy | Team (must mention Google Play / RevenueCat for purchases) |
 | iOS app, web dashboard, browser extension | Deferred by the team |
 
 **Change log** (all merged into `dev`):
@@ -423,3 +447,4 @@ Locally the server uses a SQLite file (`backend/fraudguard-dev.db`) and creates 
 | `7-Live_Server` | Server live on Render; package ID `com.fraudguard.ai`; cloud builds point at the live server; sign-up log line for the proxy check. |
 | `8-Email_Sending` | Real email codes through Resend with Brevo as backup (switched on by settings); proxy setting confirmed as 3 on Render. |
 | `9-Phone_Rules_Download` | The phone's message scanner uses rules downloaded from the server (app copy as fallback); calls detected through Call Screening, alert only; call-log permissions removed; welcome screens explain each permission before asking; all user-facing text in English; old open routes removed from the server; appeal button; background sync; microphone permission removed. |
+| `10-Premium_Subscription` | New app icon and Play Store graphics; Premium plan: free accounts get 5 AI message checks and 1 voice note check a day, Premium 60 and 10; Google Play subscription through RevenueCat, confirmed by the server; Premium screen, plan card on the account screen; migration `0002`. |

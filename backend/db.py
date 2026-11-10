@@ -30,6 +30,10 @@ class User(Base):
     # Badhane se user ke sab purane tokens invalid ho jate hain.
     token_version: Mapped[int] = mapped_column(Integer, default=0)
     blocked: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Premium kab tak (RevenueCat se). NULL = free plan.
+    premium_until: Mapped[Optional[int]] = mapped_column(BigInteger)
+    # Aakhri baar RevenueCat se kab poocha — din me ek se zyada call na ho.
+    premium_checked_at: Mapped[Optional[int]] = mapped_column(BigInteger)
 
     @property
     def is_verified(self):

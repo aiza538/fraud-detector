@@ -42,11 +42,37 @@ def hash_code(user_id, code):
     return _hmac("code", f"{user_id}|{code}")
 
 
-def consume_user_quota(user, kind):
-    """User ki limit, aur jahan set ho wahan us ke network (IP) ki bhi."""
-    consume_quota(user.id, kind, config.DAILY_LIMITS[kind])
-    if kind in config.DAILY_LIMITS_PER_IP:
+def daily_limit(kind, premium):
+    """Aaj ki limit — free plan par AI checks kam (FREE_DAILY_LIMITS)."""
+    if not premium and kind in config.FREE_DAILY_LIMITS:
+        return config.FREE_DAILY_LIMITS[kind]
+    return config.DAILY_LIMITS[kind]
+
+
+def consume_user_quota(user, kind, premium=False):
+    """User ki limit, aur free user ho to us ke network (IP) ki bhi.
+
+    Premium user ne khud paise diye hain — us par network ki limit nahi lagti
+    (warna office/hostel ke shared IP par doosron ki wajah se ruk jata).
+    """
+    free_limit = not premium and kind in config.FREE_DAILY_LIMITS
+    try:
+        consume_quota(user.id, kind, daily_limit(kind, premium))
+    except ApiError as err:
+        if free_limit and err.code == "daily_limit":
+            raise ApiError(429, "free_limit",
+                           "You've used today's free AI checks. Upgrade to Premium "
+                           "for more, or try again tomorrow.")
+        raise
+    if not premium and kind in config.DAILY_LIMITS_PER_IP:
         consume_quota("ip:" + hash_ip(client_ip()), kind, config.DAILY_LIMITS_PER_IP[kind])
+
+
+def usage_today(subject, kind):
+    """Aaj kitni dafa use hua (limit ke hisaab ke liye, kuch badalta nahi)."""
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    row = get_session().get(UsageCounter, (subject, day, kind))
+    return row.count if row else 0
 
 
 def client_ip():

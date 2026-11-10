@@ -35,6 +35,13 @@ export default function AnalyzerScreen() {
 
   const showToast = (message, type = "info") => setToast({ message, type });
 
+  // Server ka apna message (jaise daily limit) dikhao; network par default.
+  // Free plan ki AI limit poori ho to Premium screen kholo.
+  const handleError = (err) => {
+    showToast(err.message || "Backend connection failed.", "error");
+    if (err.code === "free_limit") router.push("/premium");
+  };
+
   const handleAnalyze = async (text, channel) => {
     setLoading(true);
     setResult(null);
@@ -47,8 +54,7 @@ export default function AnalyzerScreen() {
       setResult(data);
       showToast("Analysis complete!", "success");
     } catch (err) {
-      // Server ka apna message (jaise daily limit) dikhao; network par default.
-      showToast(err.message || "Backend connection failed.", "error");
+      handleError(err);
     } finally {
       setLoading(false);
     }
@@ -66,8 +72,7 @@ export default function AnalyzerScreen() {
       setResult(data);
       showToast("File analysis complete!", "success");
     } catch (err) {
-      // Server ka apna message (jaise daily limit) dikhao; network par default.
-      showToast(err.message || "Backend connection failed.", "error");
+      handleError(err);
     } finally {
       setLoading(false);
     }
@@ -90,8 +95,7 @@ export default function AnalyzerScreen() {
       setResult(data);
       showToast("Audio analysis complete!", "success");
     } catch (err) {
-      // Server ka apna message (jaise daily limit) dikhao; network par default.
-      showToast(err.message || "Backend connection failed.", "error");
+      handleError(err);
     } finally {
       setLoading(false);
     }

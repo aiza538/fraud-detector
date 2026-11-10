@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { requestEmailCode, verifyEmailCode } from "../src/services/api";
+import { syncPremium } from "../src/services/premium";
 
 // Number report karne se pehle ek baar email verify hota hai — is ke baghair
 // koi bhi 5 naye accounts bana kar kisi ka number scam mark karwa sakta tha.
@@ -47,6 +48,8 @@ export default function VerifyEmailScreen() {
   const confirmCode = () =>
     run(async () => {
       await verifyEmailCode(code.trim());
+      // Purana account wapas aaya ho to us ki subscription bhi us ke saath.
+      syncPremium();
       setStep("done");
     });
 

@@ -97,14 +97,21 @@ REPORTER_MIN_VERIFIED_AGE_SECONDS = 48 * 3600
 # me bohat se log ek hi public IP share karte hain, is liye ye zyada sakht nahi.
 SIGNUPS_PER_IP_PER_HOUR = 30
 # Har user ki rozana limit (UTC din). AI aur audio paise kharch karte hain.
+# Ye PREMIUM ki limits hain; free plan par AI ki limits FREE_DAILY_LIMITS se.
 DAILY_LIMITS = {
     "analyze_text": 60,
     "analyze_audio": 10,
     "report": 10,
     "email_code": 5,
 }
+# Free plan: protection (calls, messages, number check, report) poori free hai;
+# sirf AI checks kam hain, kyunke wahi Gemini/AssemblyAI ke paise kharch karte hain.
+FREE_DAILY_LIMITS = {
+    "analyze_text": 5,
+    "analyze_audio": 1,
+}
 # Ek network (IP) ki rozana limit — naye accounts bana kar per-user limit se
-# bachne wale ko yahan rukna parta hai.
+# bachne wale ko yahan rukna parta hai. Sirf free users par (premium kharida hua hai).
 DAILY_LIMITS_PER_IP = {
     "analyze_text": 300,
     "analyze_audio": 40,
@@ -118,6 +125,15 @@ EMAIL_CODES_PER_IP_PER_HOUR = 10
 # Ek email address par rozana kitne codes. Har code par 5 guesses milte hain —
 # ye cap kisi aur ke email ka code guess karne (account takeover) ko rokta hai.
 EMAIL_CODES_PER_EMAIL_PER_DAY = 5
+# --- Premium (RevenueCat) ----------------------------------------------------
+# Google Play subscription RevenueCat ke zariye. Secret key sirf server par
+# (Render). Key na ho to sab users free plan par rehte hain.
+REVENUECAT_SECRET_API_KEY = os.environ.get("REVENUECAT_SECRET_API_KEY", "").strip()
+# RevenueCat dashboard me entitlement ka "identifier".
+REVENUECAT_ENTITLEMENT = os.environ.get("REVENUECAT_ENTITLEMENT", "premium").strip() or "premium"
+# Paying user ka haal itne waqt baad dobara check (renewal, cancel, refund).
+PREMIUM_RECHECK_SECONDS = 24 * 3600
+
 # Email providers (mailer.py). Resend pehle, Brevo backup. MAIL_FROM domain par
 # verified address hona chahiye, jaise: FraudGuard AI <no-reply@yourdomain.com>
 MAIL_FROM = os.environ.get("MAIL_FROM", "").strip()

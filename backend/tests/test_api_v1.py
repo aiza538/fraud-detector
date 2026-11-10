@@ -428,13 +428,14 @@ class AnalyzeTests(ApiTestCase):
     def test_text_goes_to_the_detector_and_respects_the_daily_limit(self):
         headers = self.signup()
         with mock.patch("fraud_detector.analyze_text", return_value={"fraud": False}) as detector, \
-                mock.patch.dict(config.DAILY_LIMITS, {"analyze_text": 2}):
+                mock.patch.dict(config.FREE_DAILY_LIMITS, {"analyze_text": 2}):
             r = self.call("POST", "/v1/analyze/text", headers, json={"text": "hello", "channel": "whatsapp"})
             self.assertEqual(r.get_json(), {"fraud": False})
             detector.assert_called_once_with("hello", channel="whatsapp")
             self.call("POST", "/v1/analyze/text", headers, json={"text": "again"})
             r = self.call("POST", "/v1/analyze/text", headers, json={"text": "third"})
-            self.assertEqual((r.status_code, r.get_json()["error"]), (429, "daily_limit"))
+            # Free plan ki limit — app is code par Premium screen dikhati hai.
+            self.assertEqual((r.status_code, r.get_json()["error"]), (429, "free_limit"))
             self.assertEqual(detector.call_count, 2)
             # limit har user ki apni hai
             other = self.signup("10.0.0.2")

@@ -131,7 +131,8 @@ The production mobile implementation based on Expo SDK 54:
 - **`AnalyzerScreen.js`**: Replicates the text, file, and audio analyzer on mobile, plus adds an interactive **Number Checker** tab for verifying Pakistani phone numbers.
 - **`src/services/session.js`** and **`api.js`**: The app talks only to the `/v1` API. On first use it silently gets its own anonymous token, kept in the phone's secure storage. There is no login screen.
 - **`app/verify-email.tsx`**: One-time email code, asked for only when the user reports a number.
-- **`app/account.tsx`**: Shows whether the email is verified and lets the user delete their account and data.
+- **`app/account.tsx`**: Shows whether the email is verified, the plan and AI checks left today, and lets the user delete their account and data.
+- **`app/premium.tsx`** and **`src/services/premium.js`**: Premium plan through Google Play (RevenueCat). Protection is always free; Premium raises the daily AI checks. The server confirms every purchase with RevenueCat itself.
 - **`app/alert.tsx`**: Full-screen high-urgency alert screen triggered when a scam call or message is intercepted. Includes an emergency report button and direct links to the FIA portal and complaint email.
 - **`app/notifications.tsx`**: Alert history list reviewing past flagged calls and messages.
 - **Custom Native Module (`modules/expo-call-guard`)**:
@@ -261,6 +262,7 @@ python -m unittest tests.test_detection_accuracy tests.test_api_v1 tests.test_ph
 | `MAIL_FROM` | Sender for email codes, on the verified domain, e.g. `FraudGuard AI <no-reply@yourdomain.com>` |
 | `RESEND_API_KEY`, `BREVO_API_KEY` | Email providers. Resend is tried first, Brevo if it fails. Without a sender and at least one key, email verification stays off in production |
 | `TRUSTED_PROXY_HOPS` | Number of proxies in front of the server. **Must be `3` on Render**; the default of `1` makes every request look like it came from Render's own machines |
+| `REVENUECAT_SECRET_API_KEY` | RevenueCat secret key. Switches the Premium plan on; without it everyone is on the free plan |
 
 Also set `APP_ENV=production` and `PYTHON_VERSION=3.12.10`.
 

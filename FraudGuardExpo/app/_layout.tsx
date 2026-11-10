@@ -7,6 +7,7 @@ import { ensureNotificationsReady } from "../src/services/notifications";
 import { startCallMonitor } from "../src/services/callMonitor";
 // Background sync ka task app ke start hote hi define hona chahiye.
 import { registerBackgroundSync } from "../src/services/backgroundSync";
+import { syncPremium } from "../src/services/premium";
 
 export default function RootLayout() {
   useEffect(() => {
@@ -14,6 +15,7 @@ export default function RootLayout() {
     ensureNotificationsReady();
     startCallMonitor();
     registerBackgroundSync();
+    syncPremium();
   }, []);
 
   return (

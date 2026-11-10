@@ -1,7 +1,7 @@
 """/v1 API — har route (sirf /auth/anonymous ke siwa) token mangta hai.
 
-Purane bina-token routes (main.py) tab tak rehte hain jab tak mobile app /v1
-par shift nahi hoti; uske baad wo delete honge.
+Phone protection (calls, messages, number check, reports) sab ke liye free hai.
+Free aur Premium plan me farq sirf AI checks ki daily limit ka hai (premium.py).
 """
 import hashlib
 import hmac
@@ -24,10 +24,11 @@ import fraud_detector
 import mailer
 import number_rules
 import phone_rules
+import premium
 from db import EmailChallenge, NumberReport, UsageCounter, User, get_session
-from security import (ApiError, client_ip, consume_quota, consume_user_quota, hash_code,
-                      hash_email, hash_ip, is_admin, issue_token, normalize_email,
-                      require_user)
+from security import (ApiError, client_ip, consume_quota, consume_user_quota, daily_limit,
+                      hash_code, hash_email, hash_ip, is_admin, issue_token,
+                      normalize_email, require_user, usage_today)
 
 v1 = Blueprint("v1", __name__, url_prefix="/v1")
 
@@ -108,11 +109,46 @@ def auth_refresh():
     return jsonify(_session_payload(g.user))
 
 
+AI_KINDS = ("analyze_text", "analyze_audio")
+
+
+def _account_payload(user, is_premium):
+    # `id` RevenueCat ka "app user id" hai — app isi id se khareedari karti hai,
+    # taake server baad me usi user ka entitlement pooch sake.
+    return {
+        "id": user.id,
+        "verified": user.is_verified,
+        "admin": is_admin(user),
+        "created_at": user.created_at,
+        "premium": is_premium,
+        "premium_until": user.premium_until if is_premium else None,
+        "limits": {kind: daily_limit(kind, is_premium) for kind in AI_KINDS},
+        "used_today": {kind: usage_today(user.id, kind) for kind in AI_KINDS},
+    }
+
+
 @v1.get("/account")
 @require_user
 def account():
-    return jsonify({"verified": g.user.is_verified, "admin": is_admin(g.user),
-                    "created_at": g.user.created_at})
+    session = get_session()
+    return jsonify(_account_payload(g.user, premium.current(session, g.user)))
+
+
+@v1.post("/premium/refresh")
+@require_user
+def premium_refresh():
+    """Khareedne/restore ke baad app yahan aati hai: server RevenueCat se khud
+    poochta hai. Phone ka "maine khareed liya" kabhi maana nahi jata."""
+    if not premium.is_configured():
+        raise ApiError(503, "premium_unavailable", "Premium is not available right now.")
+    consume_quota(g.user.id, "premium_refresh", 20)
+    session = get_session()
+    try:
+        is_premium = premium.refresh(session, g.user)
+    except premium.Unavailable:
+        raise ApiError(503, "premium_unavailable",
+                       "Could not confirm your purchase right now. Please try again in a minute.")
+    return jsonify(_account_payload(g.user, is_premium))
 
 
 @v1.delete("/account")
@@ -236,7 +272,7 @@ def analyze_text():
     if not isinstance(text, str) or not text.strip():
         raise ApiError(400, "invalid_text", "No text provided")
     channel = data.get("channel") if isinstance(data.get("channel"), str) else None
-    consume_user_quota(g.user, "analyze_text")
+    consume_user_quota(g.user, "analyze_text", premium.current(get_session(), g.user))
     return jsonify(fraud_detector.analyze_text(text, channel=channel))
 
 
@@ -249,7 +285,7 @@ def analyze_audio():
     extension = os.path.splitext(file.filename)[1].lower()
     if extension not in AUDIO_EXTENSIONS:
         raise ApiError(400, "invalid_file", "This audio format is not supported.")
-    consume_user_quota(g.user, "analyze_audio")
+    consume_user_quota(g.user, "analyze_audio", premium.current(get_session(), g.user))
 
     # Client ka filename disk par kabhi use nahi hota: do users ki "audio.mp3"
     # ek doosre ko overwrite/delete kar deti thi.

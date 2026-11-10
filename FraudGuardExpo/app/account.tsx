@@ -14,7 +14,8 @@ import { deleteAccount, getAccount } from "../src/services/api";
 import { clearAlerts } from "../src/services/fraudAlerts";
 import { getProtectionStatus } from "../src/services/protection";
 
-type Account = { verified: boolean };
+type Usage = { analyze_text: number; analyze_audio: number };
+type Account = { verified: boolean; premium: boolean; limits: Usage; used_today: Usage };
 type Protection = Awaited<ReturnType<typeof getProtectionStatus>>;
 
 const PROTECTIONS: { key: keyof Protection; label: string }[] = [
@@ -108,6 +109,27 @@ export default function AccountScreen() {
                 </>
               )}
             </View>
+
+            {account?.limits && account?.used_today && (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Your plan</Text>
+                <Text style={[styles.status, account.premium && styles.verified]}>
+                  {account.premium ? "✓ Premium" : "Free"}
+                </Text>
+                <Text style={styles.text}>
+                  AI checks left today:{" "}
+                  {Math.max(0, account.limits.analyze_text - account.used_today.analyze_text)} of{" "}
+                  {account.limits.analyze_text} messages,{" "}
+                  {Math.max(0, account.limits.analyze_audio - account.used_today.analyze_audio)} of{" "}
+                  {account.limits.analyze_audio} voice notes.
+                </Text>
+                <TouchableOpacity style={styles.button} onPress={() => router.push("/premium")}>
+                  <Text style={styles.buttonText}>
+                    {account.premium ? "Manage Premium" : "Upgrade to Premium"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {protection && (
               <View style={styles.card}>
